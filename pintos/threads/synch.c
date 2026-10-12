@@ -34,6 +34,7 @@
 
 static bool cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 static bool cmp_donation(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+static void nest_donate_priority(void);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -197,9 +198,10 @@ lock_acquire (struct lock *lock) {
 	if (lock->holder != NULL) {
 		cur->wait_on_lock = lock;
 		list_push_back(&lock->holder->donations, &cur->donations_elem); /* chan; 기부자가 바뀌면 순서가 뒤틀릴 가능성이 있어서 list_insert_ordered() 미사용 */
-		if (lock->holder->priority < cur->priority) {
-			lock->holder->priority = cur->priority;
-		}
+		// if (lock->holder->priority < cur->priority) {
+		// 	lock->holder->priority = cur->priority;
+		// }
+		nest_donate_priority();
 	}
 	sema_down(&lock->semaphore);
 	cur->wait_on_lock = NULL;
@@ -386,5 +388,23 @@ cmp_donation(const struct list_elem *a, const struct list_elem *b, void *aux UNU
 	}
 	else{
 		return false;
+	}
+}
+
+static void
+nest_donate_priority(void) {
+	struct thread *cur = thread_current();
+	for (int depth = 0; depth < 8; depth++) {
+		if (cur->wait_on_lock == NULL) {
+			break; // 기다리는 락이 없으면 체인 끝
+		}
+		struct lock *lock = cur->wait_on_lock; // 현재 스레드가 얻으려고 기다리고 있는 락
+		if (lock->holder == NULL) {
+			break; // lock을 잡고 있는 스레드가 없다면 break
+		}
+		if (lock->holder->priority < cur->priority) {
+			lock->holder->priority = cur->priority; // 현재 우선순위가 락을 잡고 있는 우선순위보다 높다면 donate
+		}
+		cur = lock->holder;
 	}
 }
