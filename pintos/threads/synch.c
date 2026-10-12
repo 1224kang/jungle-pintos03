@@ -33,7 +33,6 @@
 #include "threads/thread.h"
 
 static bool cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
-static bool cmp_donation(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 static void nest_donate_priority(void);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -251,15 +250,7 @@ lock_release (struct lock *lock) {
 
 		}
 		
-	cur->priority = cur->original;
-
-	if (!list_empty (&cur->donations)) {
-		e = list_max (&cur->donations, cmp_donation, NULL);
-		struct thread *t = list_entry (e, struct thread, donations_elem);
-		if (t->priority > cur->priority) {
-			cur->priority = t->priority;
-		}
-	}
+	refresh_priority();
 		
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
@@ -374,19 +365,6 @@ cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *au
 	if (thread_a->priority > thread_b->priority) {
 		return true;
 	} else {
-		return false;
-	}
-}
-
-static bool
-cmp_donation(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-	struct thread * a_thread = list_entry(a, struct thread, donations_elem);
-	struct thread * b_thread = list_entry(b, struct thread, donations_elem);
-
-	if (a_thread->priority < b_thread->priority){
-		return true;
-	}
-	else{
 		return false;
 	}
 }

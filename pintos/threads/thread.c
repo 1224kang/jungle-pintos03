@@ -64,6 +64,8 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+static bool cmp_donation(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -311,11 +313,27 @@ thread_yield (void) {
 	intr_set_level (old_level);
 }
 
+void
+refresh_priority (void) {
+	struct thread *cur = thread_current();
+	struct list_elem *e;
+
+	cur->priority = cur->original;
+
+	if (!list_empty (&cur->donations)) {
+		e = list_max (&cur->donations, cmp_donation, NULL);
+		struct thread *t = list_entry (e, struct thread, donations_elem);
+		if (t->priority > cur->priority) {
+			cur->priority = t->priority;
+		}
+	}
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->original = new_priority;
-	thread_current ()->priority = new_priority;
+	refresh_priority();
 	cmp_first_ready_list(thread_current () -> priority);
 }
 
@@ -622,6 +640,18 @@ cmp_priority(const struct list_elem *x, const struct list_elem *y, void *aux UNU
 	}
 }
 
+static bool
+cmp_donation(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread * a_thread = list_entry(a, struct thread, donations_elem);
+	struct thread * b_thread = list_entry(b, struct thread, donations_elem);
+
+	if (a_thread->priority < b_thread->priority){
+		return true;
+	}
+	else{
+		return false;
+	}
+}
 
 void
 cmp_first_ready_list(int priority){
