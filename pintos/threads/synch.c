@@ -34,6 +34,7 @@
 
 static bool cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 static void nest_donate_priority(void);
+static bool cmp_list_elem(const struct list_elem *a, const struct list_elem *b, void *aux);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -117,7 +118,7 @@ sema_up (struct semaphore *sema) {
 	// 				struct thread, elem));
 	if (!list_empty(&sema->waiters)){
 		// struct list_elem *e = list_max(&sema->waiters, cmp_list_elem, NULL);
-		struct list_elem *e = list_min(&sema->waiters, cmp_priority, NULL);
+		struct list_elem *e = list_max(&sema->waiters, cmp_list_elem, NULL);
 		list_remove(e); // list_remove이후 unblock 이유 : unblock 시에 ready_list에 들어가며 elem의 prev,next 값을 변경하게 됨 list_remove도 elem의 prev, next를 건드리기 때문에 먼저 unblock하면 remove 작업이 일어나지 않음
 		thread_unblock(list_entry(e,
 					struct thread, elem));
@@ -390,5 +391,18 @@ nest_donate_priority(void) {
 			lock->holder->priority = cur->priority; // 현재 우선순위가 락을 잡고 있는 우선순위보다 높다면 donate
 		}
 		cur = lock->holder;
+	}
+}
+
+static bool
+cmp_list_elem(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread * a_thread = list_entry(a, struct thread, elem);
+	struct thread * b_thread = list_entry(b, struct thread, elem);
+
+	if (a_thread->priority < b_thread->priority){
+		return true;
+	}
+	else{
+		return false;
 	}
 }
