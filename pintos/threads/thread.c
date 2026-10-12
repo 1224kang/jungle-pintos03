@@ -46,6 +46,9 @@ static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
 
+static fixed_t load_avg; 
+
+
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
@@ -181,6 +184,7 @@ thread_print_stats (void) {
 tid_t
 thread_create (const char *name, int priority,
 		thread_func *function, void *aux) {
+	
 	struct thread *t;
 	tid_t tid;
 
@@ -332,6 +336,9 @@ refresh_priority (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
+	if(thread_mlfqs){
+		return ;
+	}
 	thread_current ()->original = new_priority;
 	refresh_priority();
 	cmp_first_ready_list(thread_current () -> priority);
