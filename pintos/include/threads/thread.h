@@ -101,6 +101,10 @@ struct thread {
 	struct list_elem donations_elem;
 	struct lock * wait_on_lock;
 
+	int nice;
+	fixed_t recent_cpu;
+	struct list_elem all_ready_list_elem;
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
