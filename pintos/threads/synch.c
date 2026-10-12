@@ -395,7 +395,7 @@ nest_donate_priority(void) {
 
 static bool
 cmp_list_elem(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-	struct thread * a_thread = list_entry(a, struct thread, elem);
+	struct thread * a_thread = list_entry(a, struct thread, elem); // 기존 donations_elem -> elem으로 변경 : sema_waiters에 sema_down -> &thread_current -> elem 으로 넣었기 때문
 	struct thread * b_thread = list_entry(b, struct thread, elem);
 
 	if (a_thread->priority < b_thread->priority){
