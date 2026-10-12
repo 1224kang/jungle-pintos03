@@ -199,21 +199,22 @@ lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
-
+	
 	struct thread *cur = thread_current();
 
-	if (lock->holder != NULL) {
-		cur->wait_on_lock = lock;
-		list_push_back(&lock->holder->donations, &cur->donations_elem); /* chan; 기부자가 바뀌면 순서가 뒤틀릴 가능성이 있어서 list_insert_ordered() 미사용 */
-		// if (lock->holder->priority < cur->priority) {
-		// 	lock->holder->priority = cur->priority;
-		// }
-		nest_donate_priority();
+	if (!thread_mlfqs){
+		if (lock->holder != NULL) {
+			cur->wait_on_lock = lock;
+			list_push_back(&lock->holder->donations, &cur->donations_elem); /* chan; 기부자가 바뀌면 순서가 뒤틀릴 가능성이 있어서 list_insert_ordered() 미사용 */
+			// if (lock->holder->priority < cur->priority) {
+			// 	lock->holder->priority = cur->priority;
+			// }
+			nest_donate_priority();
+		}
 	}
 	sema_down(&lock->semaphore);
-	cur->wait_on_lock = NULL;
-	lock->holder = cur;
-	
+		cur->wait_on_lock = NULL;
+		lock->holder = cur;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -245,19 +246,21 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+	
+	if(!thread_mlfqs){
+		struct thread *cur = thread_current();
+		struct list_elem *e = list_begin (&cur->donations);
 
-	struct thread *cur = thread_current();
-	struct list_elem *e = list_begin (&cur->donations);
+		while (e != list_end (&cur->donations)) {
+			struct thread *t = list_entry (e, struct thread, donations_elem);
+			if (t->wait_on_lock == lock)
+				e = list_remove (e);
+			else
+				e = list_next (e);
 
-	while (e != list_end (&cur->donations)) {
-		struct thread *t = list_entry (e, struct thread, donations_elem);
-		if (t->wait_on_lock == lock)
-			e = list_remove (e);
-		else
-			e = list_next (e);
-
-		}
-	refresh_priority();
+			}
+		refresh_priority();
+	}
 
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);

@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/fixed_point.h"
 #include "threads/interrupt.h"
 #ifdef VM
 #include "vm/vm.h"
@@ -100,6 +101,10 @@ struct thread {
 	struct list donations;
 	struct list_elem donations_elem;
 	struct lock * wait_on_lock;
+
+	int nice;
+	fixed_t recent_cpu;
+	struct list_elem mlfqs_list_elem; // 동시에 하나만 들어갈 수 있으므로 하나 더 추가 (현재 running_thread, ready_thread 세기 위함)
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
