@@ -112,11 +112,18 @@ sema_up (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
-		thread_unblock (list_entry (list_pop_front (&sema->waiters),
+	// if (!list_empty (&sema->waiters))
+	// 	thread_unblock (list_entry (list_pop_front (&sema->waiters),
+	// 				struct thread, elem));
+	if (!list_empty(&sema->waiters)){
+		// struct list_elem *e = list_max(&sema->waiters, cmp_list_elem, NULL);
+		struct list_elem *e = list_min(&sema->waiters, cmp_priority, NULL);
+		list_remove(e); // list_remove이후 unblock 이유 : unblock 시에 ready_list에 들어가며 elem의 prev,next 값을 변경하게 됨 list_remove도 elem의 prev, next를 건드리기 때문에 먼저 unblock하면 remove 작업이 일어나지 않음
+		thread_unblock(list_entry(e,
 					struct thread, elem));
+	}
 	sema->value++;
-	cmp_first_ready_list(thread_current()->priority);	
+	cmp_first_ready_list(thread_current()->priority);
 	intr_set_level (old_level);
 }
 
@@ -249,9 +256,8 @@ lock_release (struct lock *lock) {
 			e = list_next (e);
 
 		}
-		
 	refresh_priority();
-		
+
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
 }
