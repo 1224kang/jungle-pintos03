@@ -32,6 +32,9 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+static bool cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+static void nest_donate_priority(void);
+static bool cmp_list_elem(const struct list_elem *a, const struct list_elem *b, void *aux);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -66,7 +69,8 @@ sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		list_push_back (&sema->waiters, &thread_current ()->elem);
+		// list_push_back (&sema->waiters, &thread_current ()->elem);
+		list_insert_ordered(&sema->waiters, &thread_current ()->elem, cmp_priority, NULL);
 		thread_block ();
 	}
 	sema->value--;
@@ -109,10 +113,18 @@ sema_up (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
-		thread_unblock (list_entry (list_pop_front (&sema->waiters),
+	// if (!list_empty (&sema->waiters))
+	// 	thread_unblock (list_entry (list_pop_front (&sema->waiters),
+	// 				struct thread, elem));
+	if (!list_empty(&sema->waiters)){
+		// struct list_elem *e = list_max(&sema->waiters, cmp_list_elem, NULL);
+		struct list_elem *e = list_max(&sema->waiters, cmp_list_elem, NULL);
+		list_remove(e); // list_remove이후 unblock 이유 : unblock 시에 ready_list에 들어가며 elem의 prev,next 값을 변경하게 됨 list_remove도 elem의 prev, next를 건드리기 때문에 먼저 unblock하면 remove 작업이 일어나지 않음
+		thread_unblock(list_entry(e,
 					struct thread, elem));
+	}
 	sema->value++;
+	cmp_first_ready_list(thread_current()->priority);
 	intr_set_level (old_level);
 }
 
@@ -187,9 +199,22 @@ lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
+	
+	struct thread *cur = thread_current();
 
-	sema_down (&lock->semaphore);
-	lock->holder = thread_current ();
+	if (!thread_mlfqs){
+		if (lock->holder != NULL) {
+			cur->wait_on_lock = lock;
+			list_push_back(&lock->holder->donations, &cur->donations_elem); /* chan; 기부자가 바뀌면 순서가 뒤틀릴 가능성이 있어서 list_insert_ordered() 미사용 */
+			// if (lock->holder->priority < cur->priority) {
+			// 	lock->holder->priority = cur->priority;
+			// }
+			nest_donate_priority();
+		}
+	}
+	sema_down(&lock->semaphore);
+		cur->wait_on_lock = NULL;
+		lock->holder = cur;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -221,6 +246,21 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+	
+	if(!thread_mlfqs){
+		struct thread *cur = thread_current();
+		struct list_elem *e = list_begin (&cur->donations);
+
+		while (e != list_end (&cur->donations)) {
+			struct thread *t = list_entry (e, struct thread, donations_elem);
+			if (t->wait_on_lock == lock)
+				e = list_remove (e);
+			else
+				e = list_next (e);
+
+			}
+		refresh_priority();
+	}
 
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
@@ -301,6 +341,8 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (lock_held_by_current_thread (lock));
+	//&cond->waiters list 정렬 해야 함
+	list_sort(&cond->waiters, cmp_sema_priority, NULL);
 
 	if (!list_empty (&cond->waiters))
 		sema_up (&list_entry (list_pop_front (&cond->waiters),
@@ -320,4 +362,50 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 
 	while (!list_empty (&cond->waiters))
 		cond_signal (cond, lock);
+}
+
+static bool
+cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	struct semaphore_elem *sema_a = list_entry(a, struct semaphore_elem, elem);
+	struct semaphore_elem *sema_b = list_entry(b, struct semaphore_elem, elem);
+	
+	struct thread *thread_a = list_entry(list_front(&sema_a->semaphore.waiters), struct thread, elem);
+	struct thread *thread_b = list_entry(list_front(&sema_b->semaphore.waiters), struct thread, elem);
+	
+	if (thread_a->priority > thread_b->priority) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+static void
+nest_donate_priority(void) {
+	struct thread *cur = thread_current();
+	for (int depth = 0; depth < 8; depth++) {
+		if (cur->wait_on_lock == NULL) {
+			break; // 기다리는 락이 없으면 체인 끝
+		}
+		struct lock *lock = cur->wait_on_lock; // 현재 스레드가 얻으려고 기다리고 있는 락
+		if (lock->holder == NULL) {
+			break; // lock을 잡고 있는 스레드가 없다면 break
+		}
+		if (lock->holder->priority < cur->priority) {
+			lock->holder->priority = cur->priority; // 현재 우선순위가 락을 잡고 있는 우선순위보다 높다면 donate
+		}
+		cur = lock->holder;
+	}
+}
+
+static bool
+cmp_list_elem(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread * a_thread = list_entry(a, struct thread, elem);
+	struct thread * b_thread = list_entry(b, struct thread, elem);
+
+	if (a_thread->priority < b_thread->priority){
+		return true;
+	}
+	else{
+		return false;
+	}
 }

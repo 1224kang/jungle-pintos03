@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/fixed_point.h"
 #include "threads/interrupt.h"
 #ifdef VM
 #include "vm/vm.h"
@@ -91,9 +92,19 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+	int64_t wakeup_tick;                /* wakeup_tick. */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+
+	int original;
+	struct list donations;
+	struct list_elem donations_elem;
+	struct lock * wait_on_lock;
+
+	int nice;
+	fixed_t recent_cpu;
+	struct list_elem mlfqs_list_elem; // 동시에 하나만 들어갈 수 있으므로 하나 더 추가 (현재 running_thread, ready_thread 세기 위함)
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -135,12 +146,22 @@ void thread_yield (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void refresh_priority (void);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void mlfqs_increment_recent_cpu (void);
+void mlfqs_recalc_recent_cpu (void);
+void mlfqs_recalc_all_priority (void);
+
 void do_iret (struct intr_frame *tf);
 
+void update_load_avg(void);
+bool check_thread_mlfqs(void);
+
+bool cmp_priority(const struct list_elem *x, const struct list_elem *y, void *aux);
+void cmp_first_ready_list(int priority);
 #endif /* threads/thread.h */
