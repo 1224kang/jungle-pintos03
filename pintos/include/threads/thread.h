@@ -154,6 +154,8 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void mlfqs_increment_recent_cpu (void);
+void mlfqs_recalc_recent_cpu (void);
+void mlfqs_recalc_all_priority (void);
 
 void do_iret (struct intr_frame *tf);
 
