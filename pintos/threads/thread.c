@@ -146,7 +146,6 @@ thread_start (void) {
 void
 thread_tick (void) {
 	struct thread *t = thread_current ();
-
 	/* Update statistics. */
 	if (t == idle_thread)
 		idle_ticks++;
@@ -379,7 +378,7 @@ int
 thread_get_load_avg (void) {
 	/* 시스템 전체 부하 측정*/
 	/* TODO: Your implementation goes here */
-	return 0;
+	return fp_to_int_round(fp_mul_int(100,load_avg));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -709,5 +708,18 @@ cmp_first_ready_list(int priority){
 		} else {
 			thread_yield();
 		}
+	}
+}
+
+void
+update_load_avg(void){
+	if (thread_current() == idle_thread){
+		load_avg = 
+		fp_mul(fp_div(int_to_fp(59), int_to_fp(60)),load_avg) + 
+		fp_mul_int(fp_div(int_to_fp(1), int_to_fp(60)),list_size(&ready_list));
+	}else{
+		load_avg = 
+		fp_mul(fp_div(int_to_fp(59), int_to_fp(60)),load_avg) + 
+		fp_mul_int(fp_div(int_to_fp(1), int_to_fp(60)),list_size(&ready_list)+1);
 	}
 }
