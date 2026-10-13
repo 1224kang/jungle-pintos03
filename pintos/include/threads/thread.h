@@ -153,6 +153,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void mlfqs_increment_recent_cpu (void);
+
 void do_iret (struct intr_frame *tf);
 
 bool cmp_priority(const struct list_elem *x, const struct list_elem *y, void *aux);
