@@ -157,6 +157,9 @@ void mlfqs_increment_recent_cpu (void);
 
 void do_iret (struct intr_frame *tf);
 
+void update_load_avg(void);
+bool check_thread_mlfqs(void);
+
 bool cmp_priority(const struct list_elem *x, const struct list_elem *y, void *aux);
 void cmp_first_ready_list(int priority);
 #endif /* threads/thread.h */
