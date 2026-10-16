@@ -18,7 +18,6 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
-#include "string.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -183,32 +182,36 @@ process_exec (void *f_name) {
 
 	/* And then load the binary */
 	char* save_ptr;
-	char *buffer = malloc(strlen(file_name) + 1);
+	char *buffer;
 	char* letter;
 	char** argv;
 	int argc = 0;
 
 	strlcpy(buffer, file_name, strlen(file_name)+1);
 
-	letter = strtok_r(buffer, " ", &save_ptr);
-	
-	while (letter != NULL)
-	{
-		argc++;
-		letter = strtok_r(buffer, " ", &save_ptr);
+	bool in_word;
+	for (int i = 0; file_name[i] != '\0'; i++) {
+		if (file_name[i] == ' ') {
+			in_word = false;
+		}
+		else if (!in_word) {
+			argc++;
+			in_word = true;
+		}
 	}
 
-	argv = (char **)malloc(argc * sizeof(char*));
+	argv = (char **)malloc((argc+1) * sizeof(char*));
 
 	letter = strtok_r(buffer, " ", &save_ptr);
 
 	for (int i = 0; letter != NULL; i++)
 	{
 		argv[i] = letter;
-		letter = strtok_r(buffer, " ", &save_ptr);
+		letter = strtok_r(NULL, " ", &save_ptr);
 	}
 
 	free(argv);
+	free(buffer);
 
 	success = load (file_name, &_if);
 
