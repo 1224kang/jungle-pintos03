@@ -1,3 +1,6 @@
+#include <stdbool.h>
+
+typedef int pid_t;
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 
