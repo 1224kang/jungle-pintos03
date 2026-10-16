@@ -45,6 +45,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	번호를 rax, 인자들을 rdi, rsi, rdx, r10, r8, r9에 넣는 코드가 그대로 보임
 	*/
 	printf ("system call!\n");
+
 	switch(f->R.rax){
 		case SYS_HALT:{
 			halt();
@@ -55,9 +56,11 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			exit(status); // int status
 			break;
 		}
-		// case SYS_FORK:
-		// 	fork(""); // const chat *thread_name
-		// 	break;
+		case SYS_FORK:
+			const char *thread_name = f->R.rdi;
+			fork(thread_name);
+			break;
+			
 		case SYS_WAIT:{
 			pid_t pid = f->R.rdi;
 			wait(pid); //  pid_t pid
