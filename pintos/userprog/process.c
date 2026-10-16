@@ -18,9 +18,12 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "string.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
+
+#define USERPROG 1
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
@@ -173,10 +176,40 @@ process_exec (void *f_name) {
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
+	struct thread *t = thread_current();
+
 	/* We first kill the current context */
 	process_cleanup ();
 
 	/* And then load the binary */
+	char* save_ptr;
+	char *buffer = malloc(strlen(file_name) + 1);
+	char* letter;
+	char** argv;
+	int argc = 0;
+
+	strlcpy(buffer, file_name, strlen(file_name)+1);
+
+	letter = strtok_r(buffer, " ", &save_ptr);
+	
+	while (letter != NULL)
+	{
+		argc++;
+		letter = strtok_r(buffer, " ", &save_ptr);
+	}
+
+	argv = (char **)malloc(argc * sizeof(char*));
+
+	letter = strtok_r(buffer, " ", &save_ptr);
+
+	for (int i = 0; letter != NULL; i++)
+	{
+		argv[i] = letter;
+		letter = strtok_r(buffer, " ", &save_ptr);
+	}
+
+	free(argv);
+
 	success = load (file_name, &_if);
 
 	/* If load failed, quit. */
@@ -416,6 +449,8 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+
+	 
 
 	success = true;
 
