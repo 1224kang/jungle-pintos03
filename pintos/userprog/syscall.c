@@ -4,6 +4,10 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/vaddr.h"
+#include "threads/mmu.h"
+#include "threads/synch.h"
+#include "filesys/file.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
@@ -11,6 +15,9 @@
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
+static struct lock filesys_lock; 
+static void check_buffer (const void *buffer, unsigned size);
+static struct file *fd_to_file (int fd);
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -29,6 +36,7 @@ syscall_init (void) {
 	write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48  |
 			((uint64_t)SEL_KCSEG) << 32);
 	write_msr(MSR_LSTAR, (uint64_t) syscall_entry);
+	lock_init(&filesys_lock); // 초기화, 안하면 이상한 값 들어옴
 
 	/* The interrupt service rountine should not serve any interrupts
 	 * until the syscall_entry swaps the userland stack to the kernel
@@ -38,89 +46,68 @@ syscall_init (void) {
 }
 /* The main system call interface */
 void
-syscall_handler (struct intr_frame *f UNUSED) {
-	// TODO: Your implementation goes here.
-	/*
-	맨 위에 인라인 어셈블리로 된 syscall() 함수
-	번호를 rax, 인자들을 rdi, rsi, rdx, r10, r8, r9에 넣는 코드가 그대로 보임
-	*/
-	printf ("system call!\n");
+syscall_handler (struct intr_frame *f) {
+	switch (f->R.rax) {
+		case SYS_HALT:
+			halt ();
+			break;
 
-	switch(f->R.rax){
-		case SYS_HALT:{
-			halt();
+		case SYS_EXIT:
+			exit((int) f->R.rdi);
 			break;
-		}
-		case SYS_EXIT:{
-			int status = f->R.rax;
-			exit(status); // int status
+
+		// case SYS_FORK:
+		// 	f->R.rax = fork ();
+		// 	break;
+
+		case SYS_EXEC:
+			f->R.rax = exec((const char *) f->R.rdi);
 			break;
-		}
-		case SYS_FORK:
-			const char *thread_name = f->R.rdi;
-			fork(thread_name);
+
+		case SYS_WAIT:
+			f->R.rax = wait((pid_t) f->R.rdi);
 			break;
-			
-		case SYS_WAIT:{
-			pid_t pid = f->R.rdi;
-			wait(pid); //  pid_t pid
+
+		case SYS_CREATE:
+			f->R.rax = create((const char *) f->R.rdi, (unsigned) f->R.rsi);
 			break;
-		}
-		case SYS_CREATE:{
-			char * file = f->R.rdi;
-			unsigned initial_size = f->R.rsi;
-			create(file, initial_size); // char *file, initial_size
+
+		case SYS_REMOVE:
+			f->R.rax = remove((const char *) f->R.rdi);
 			break;
-		}
-		case SYS_REMOVE:{
-			const char * file = f->R.rdi;
-			remove(file); // const char * file
+
+		case SYS_OPEN:
+			f->R.rax = open((const char *) f->R.rdi);
 			break;
-		}
-		case SYS_OPEN:{
-			char *file = f->R.rdi;
-			open(file); //char *file
+
+		case SYS_FILESIZE:
+			f->R.rax = filesize((int) f->R.rdi);
 			break;
-		}
-		case SYS_FILESIZE:{
-			int fd = f->R.rdi;
-			filesize(fd); // int fd
+
+		case SYS_READ:
+			f->R.rax = read((int) f->R.rdi, (void *) f->R.rsi, (unsigned) f->R.rdx);
 			break;
-		}
-		case SYS_READ: {
-			int fd = f->R.rdi;
-			void *buffer = f->R.rsi;
-			unsigned size = f->R.rdx;
-			read(fd, buffer, size); // int fd, void *buffer, unsigned size
+
+		case SYS_WRITE:
+			f->R.rax = write((int) f->R.rdi, (const void *) f->R.rsi, (unsigned) f->R.rdx);
 			break;
-		}
-		case SYS_WRITE:{
-			int fd = f->R.rdi;
-			void *buffer = f->R.rsi;
-			unsigned size = f->R.rdx;
-			write(fd, buffer, size); // int fd, const void *buffer, unsigned size
+
+		case SYS_SEEK:
+			seek((int) f->R.rdi, (unsigned) f->R.rsi);
 			break;
-		}
-		case SYS_SEEK:{
-			int fd = f->R.rdi;
-			unsigned position = f->R.rsi;
-			seek(fd, position); // int fd, unsinged position
+
+		case SYS_TELL:
+			f->R.rax = tell((int) f->R.rdi);
 			break;
-		}
-		case SYS_TELL:{
-			int fd = f->R.rdi;
-			tell(fd); // int fd
+
+		case SYS_CLOSE:
+			close((int) f->R.rdi);
 			break;
-		}
-		case SYS_CLOSE:{
-			int fd = f->R.rdi;
-			close(fd); // int fd
+
+		default:
+			exit(-1);
 			break;
-		}
 	}
-
-
-	thread_exit ();
 }
 
 void
@@ -219,60 +206,51 @@ filesize (int fd){
 
 int
 read (int fd, void *buffer, unsigned size){
-	/*
-	fd로 열려 있는 파일에서 size 바이트를 읽어 buffer에 저장
-	읽은 바이트 수를 반환하며(파일 끝이면 0),
-	파일 끝이 아닌 다른 이유로 파일을 읽을 수 없는 경우에는 -1을 반환
-	fd 0은 input_getc()를 사용해 키보드로부터 읽습니다.
-	*/
-	if(buffer == NULL){ // NULL비교
-		exit(-1);
-	}
-	uint64_t *pml4 = thread_current()->pml4;
+	return 0;
+}
 
-	if (!pml4_get_page(pml4, buffer)){ // 매핑 여부 확인
-		exit(-1);
-	}
-	uint64_t *pte = pml4e_walk(pml4, buffer, 0);
-	if(!is_user_vaddr(pte)){ // 유저 영역인지 확인
-		exit(-1);
-	}
+static void
+check_buffer (const void *buffer, unsigned size) {
+	if (buffer == NULL)
+		exit (-1);
+	if (size == 0)
+		return;
 
-	if (fd == 0){
-		input_getc();
-	}
-	if (fd == 1){
-		return -1;
-	}
-	if (fd >= 2){
-		file_read()
-	}
+	const uint8_t *start = buffer;
+	const uint8_t *end = start + size - 1;
+	if (end < start) // 주석 추가 할 예정
+		exit (-1);
 
+	uint64_t *pml4 = thread_current ()->pml4;
+	for (const uint8_t *p = pg_round_down (start); p <= end; p += PGSIZE) {
+		if (!is_user_vaddr (p) || pml4_get_page (pml4, p) == NULL)
+			exit (-1);
+	}
+}
+
+static struct file *
+fd_to_file (int fd) {
+	return thread_current ()->fdt[fd];
 }
 
 int
 write (int fd, const void *buffer, unsigned size){
-	/*
-	체크 해야 하는 것 3가지
-	NULL인가?
-	유저 영역인가?
-	실제 매핑되어 있는가
-	-> 셋 중 하나라도 걸리면 exit(-1)
-	*/
-	if(buffer == NULL){ // NULL비교
-		exit(-1);
-	}
-	uint64_t *pml4 = thread_current() -> pml4;
-
-	if (!pml4_get_page(pml4, buffer)){ // 매핑 여부 확인
-		exit(-1);
-	}
-	uint64_t *pte = pml4e_walk(pml4, buffer, 0);
-	if(!is_user_vaddr(pte)){ // 유저 영역인지 확인
-		exit(-1);
-	} 
-
-	putbuf(buffer, size); // buffer에서 n개의 문자를 콘솔에 출력하는 함수
+	check_buffer(buffer, size);
+	
+	if (fd == 1)// 모니터이기 때문에 이때만 콘솔 출력
+		putbuf(buffer, size); // buffer에서 n개의 문자를 콘솔에 출력하는 함수
+		return size;
+	if (fd == 0)
+		return -1;
+	
+	struct file *file = fd_to_file(fd); // 이거로 열어서 가져와야 함
+	if (file == NULL)
+		return -1;
+	
+	lock_acquire (&filesys_lock);
+	int written = file_write (file, buffer, size);
+	lock_release (&filesys_lock);
+	return written;
 }
 
 void
