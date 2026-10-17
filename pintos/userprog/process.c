@@ -22,6 +22,8 @@
 #include "vm/vm.h"
 #endif
 
+#define USERPROG 1
+
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -182,6 +184,8 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+
+	struct thread *t = thread_current();
 
 	/* We first kill the current context */
 	process_cleanup ();
