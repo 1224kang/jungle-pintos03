@@ -22,6 +22,8 @@
 #include "vm/vm.h"
 #endif
 
+#define USERPROG 1
+
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -32,6 +34,16 @@ static void
 process_init (void) {
 	struct thread *current = thread_current ();
 }
+
+/*argument passing to register*/
+static bool setup_arguments(
+    struct intr_frame *if_,
+    int argc,
+    char **argv
+);
+
+static void
+stack_push(uint64_t *rsp, const void *data, size_t size);
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
  * The new thread may be scheduled (and may even exit)
@@ -173,12 +185,20 @@ process_exec (void *f_name) {
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
+	struct thread *t = thread_current();
+
 	/* We first kill the current context */
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
 
+
+
+	success = load (argv[0], &_if);
+
+	if(success) setup_arguments(&_if, argc, argv);
+
+	
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
@@ -188,6 +208,43 @@ process_exec (void *f_name) {
 	do_iret (&_if);
 	NOT_REACHED ();
 }
+
+static bool
+setup_arguments(struct intr_frame *if_, int argc, char **argv){
+
+	uint64_t rsp = if_->rsp;
+	uint64_t zero = 0;
+	//사용자 스택에 문자열 저장
+	for(int i = argc-1; i >=0; i--){
+		size_t len = strlen(argv[i]) + 1;
+
+		stack_push(&rsp, argv[i], len);
+		
+		argv[i] = (char*)rsp; //첫번째 주소 저장
+	}
+	//스택 정렬 패딩 삽입
+	size_t data_byte = (argc +1)*sizeof(char *);
+	size_t padding = (rsp - data_byte)%16;
+	rsp -= padding;
+	//스택에 0 저장
+	stack_push(&rsp, &zero, sizeof(zero));
+	for(int i = argc - 1; i >= 0; i--){
+		u_int64_t address = (uint64_t)argv[i];
+		stack_push(&rsp, &address, sizeof(address));
+	}
+	if_->R.rdi = argc;
+	if_->R.rsi = rsp;
+	//가짜주소
+	stack_push(&rsp, &zero, sizeof(zero));
+
+}
+
+static void
+stack_push(uint64_t *rsp, const void *data, size_t size){
+	*rsp -= size;
+	memcpy((void *)*rsp, data, size);
+}
+
 
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -329,11 +386,14 @@ load (const char *file_name, struct intr_frame *if_) {
 	bool success = false;
 	int i;
 
+
+
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
 		goto done;
 	process_activate (thread_current ());
+
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
@@ -417,6 +477,8 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
 
+
+
 	success = true;
 
 done:
@@ -424,6 +486,9 @@ done:
 	file_close (file);
 	return success;
 }
+
+
+
 
 
 /* Checks whether PHDR describes a valid, loadable segment in

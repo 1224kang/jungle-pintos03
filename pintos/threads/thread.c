@@ -29,6 +29,8 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list all_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -116,6 +118,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&all_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -304,6 +307,7 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
+	list_remove(&thread_current()->mlfqs_list_elem);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
 }
@@ -415,6 +419,26 @@ mlfqs_increment_recent_cpu (void) {
 	}
 }
 
+void
+mlfqs_recalc_recent_cpu (void) {
+	struct list_elem *e;
+	for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+		struct thread *t = list_entry(e, struct thread, mlfqs_list_elem);
+		mlfqs_calc_recent_cpu(t);
+	}
+}
+
+void
+mlfqs_recalc_all_priority (void) {
+	struct list_elem *e;
+	for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+		struct thread *t = list_entry(e, struct thread, mlfqs_list_elem);
+		mlfqs_calc_priority(t);
+	}
+	list_sort(&ready_list, cmp_priority, NULL);
+	cmp_first_ready_list(thread_current()->priority);
+}
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -481,6 +505,8 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original = priority;
 	list_init(&t->donations);
 	t->wait_on_lock = NULL;
+
+	list_push_back(&all_list, &t->mlfqs_list_elem);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

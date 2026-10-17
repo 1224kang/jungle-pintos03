@@ -141,11 +141,18 @@ timer_print_stats (void) {
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	if (thread_mlfqs){
-		if (timer_ticks () % TIMER_FREQ == 0){
+	if (thread_mlfqs) {
+
+		mlfqs_increment_recent_cpu();
+		if (timer_ticks () % TIMER_FREQ == 0) {
 			update_load_avg();
+			mlfqs_recalc_recent_cpu();
+		}
+		if (ticks % 4 == 0) {
+			mlfqs_recalc_all_priority();
 		}
 	}
+
 	while (!list_empty(&sleep_list))
 	{
 		struct thread *t = list_entry (list_front (&sleep_list), struct thread, elem);
