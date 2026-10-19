@@ -51,6 +51,7 @@ syscall_init (void) {
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 /* The main system call interface */
+struct intr_frame *f_data;
 void
 syscall_handler (struct intr_frame *f) {
 	switch (f->R.rax) {
@@ -63,10 +64,11 @@ syscall_handler (struct intr_frame *f) {
 			exit((int) f->R.rdi);
 			break;
 
-		// case SYS_FORK:
-		// 	f->R.rax = fork ();
-		// 	break;
-
+		case SYS_FORK:{
+			f_data = f;
+			f->R.rax = fork (f->R.rdi);
+			break;
+		}
 		case SYS_EXEC:
 			f->R.rax = exec((const char *) f->R.rdi);
 			break;
@@ -169,7 +171,7 @@ fork (const char *thread_name){
 	template는 pml4_for_each() in을 사용
 	해당 페이지 테이블 구조를 포함한 전체 사용자 메모리 공간을 복사하지만 전달된 값을 누락 부분을 채워야 함
 	*/
-	process_fork(thread_name);
+	return process_fork(thread_name);
 
 }
 
@@ -210,9 +212,16 @@ wait (pid_t pid){
 	wait-1다음 조건 중 하나라도 충족되면 즉시 실패하고 반환해야 합니다 .
 
 	pid`calling`은 호출 프로세스의 직접적인 자식 프로세스를 가리키는 것이 아닙니다.
-	`calling`은 호출 프로세스 가 `calling` 호출에 성공하여 반환 값으로 `calling` pid을 받은 경우에만 호출 프로세스의 직접적인 자식 프로세스가 됩니다 .
+
+	`calling`은 호출 프로세스 가 `calling` 호출에 성공하여 반환 값으로 `calling` pid을 받은 경우에만 
+	호출 프로세스의 직접적인 자식 프로세스가 됩니다 .
 	자식 프로세스는 상속되지 않습니다.
-	예를 들어, A가 자식 프로세스 B를 생성하고 B가 자식 프로세스 C를 생성하는 경우, B가 종료되었더라도 A는 C를 기다릴 수 없습니다.
+
+	예를 들어, 
+	A가 자식 프로세스 B를 생성하고
+	B가 자식 프로세스 C를 생성하는 경우, 
+	B가 종료되었더라도 A는 C를 기다릴 수 없습니다.
+
 	프로세스 A의 `calling` 호출은 반드시 실패해야 합니다.
 	마찬가지로, 부모 프로세스가 고아 프로세스보다 먼저 종료되면 고아 프로세스는 새로운 부모 프로세스에 할당되지 않습니다.pidforkwait(C)
 	호출하는 프로세스는 wait이미 호출을 완료했습니다 wait. pid즉, 프로세스는 wait특정 자식 프로세스에 대해 최대 한 번만 호출할 수 있습니다.
@@ -334,7 +343,7 @@ write (int fd, const void *buffer, unsigned size){
 		return -1;
 	
 	lock_acquire (&file_lock);
-	int written = file_write (file, buffer, size);
+	int written = file_write (file, buffer, size); // file 사용 함수, file구조체 주소로 넘겨줘야 함
 	lock_release (&file_lock);
 	return written;
 }

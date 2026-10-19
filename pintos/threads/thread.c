@@ -30,7 +30,7 @@
 static struct list ready_list;
 
 static struct list all_list;
-
+struct semaphore child_sema;
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -120,6 +120,8 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&all_list);
 	list_init (&destruction_req);
+	
+	sema_init (&child_sema, 0);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
