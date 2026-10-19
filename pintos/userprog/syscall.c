@@ -15,7 +15,7 @@
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
-static struct lock filesys_lock; 
+static struct lock file_lock; 
 static void check_buffer (const void *buffer, unsigned size);
 static struct file *fd_to_file (int fd);
 /* System call.
@@ -36,7 +36,7 @@ syscall_init (void) {
 	write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48  |
 			((uint64_t)SEL_KCSEG) << 32);
 	write_msr(MSR_LSTAR, (uint64_t) syscall_entry);
-	lock_init(&filesys_lock); // 초기화, 안하면 이상한 값 들어옴
+	lock_init(&file_lock); // 초기화, 안하면 이상한 값 들어옴
 
 	/* The interrupt service rountine should not serve any interrupts
 	 * until the syscall_entry swaps the userland stack to the kernel
@@ -222,12 +222,13 @@ write (int fd, const void *buffer, unsigned size){
 		return -1;
 	
 	struct file *file = fd_to_file(fd); // 이거로 열어서 가져와야 함
+	
 	if (file == NULL)
 		return -1;
 	
-	lock_acquire (&filesys_lock);
+	lock_acquire (&file_lock);
 	int written = file_write (file, buffer, size);
-	lock_release (&filesys_lock);
+	lock_release (&file_lock);
 	return written;
 }
 
@@ -248,24 +249,29 @@ close (int fd){
 
 static void
 check_buffer (const void *buffer, unsigned size) {
-	if (buffer == NULL)
+	if (buffer == NULL)          // 버퍼 포인터가 NULL이면 잘못된 접근이므로 종료
 		exit (-1);
-	if (size == 0)
+
+	if (size == 0)               // 크기가 0이면 실제로 접근할 메모리가 없으므로 검사할 필요 없음
 		return;
 
-	const uint8_t *start = buffer;
-	const uint8_t *end = start + size - 1;
+	const uint8_t *start = buffer;            // 바이트 단위로 계산하기 위해 uint8_t 포인터로 변환
+	const uint8_t *end = start + size - 1;    // 버퍼의 마지막 바이트 주소
 	
-	if (end < start) // 주석 추가 할 예정
+	if (end < start)             // start + size가 주소 공간 끝을 넘어 0 근처로 되돌아간 경우(오버플로우) - 종료
 		exit (-1);
 
-	uint64_t *pml4 = thread_current ()->pml4;
+	uint64_t *pml4 = thread_current ()->pml4; // 현재 프로세스의 페이지 테이블(pml4)을 가져옴
 
-	for (const uint8_t *p = pg_round_down (start); p <= end; p += PGSIZE) {
-		if (!is_user_vaddr (p)){
+	/* 
+	버퍼가 여러 페이지에 걸쳐 있을 수 있으므로,
+	start가 속한 페이지의 시작 주소부터 end가 속한 페이지까지 한 페이지씩 검사
+	*/
+	for (const uint8_t *p = pg_round_down (start); p <= end; p += PGSIZE) { // pg_round_down 사용시 주소를 그 주소가 속한 페이지의 시작 주소로 내림 
+		if (!is_user_vaddr (p)){             // 페이지가 사용자 영역이 아니면 커널 메모리 침범이므로 종료
 			exit (-1);
 		}
-		if (pml4_get_page (pml4, p) == NULL){
+		if (pml4_get_page (pml4, p) == NULL){ // 해당 페이지가 페이지 테이블에 매핑되어 있지 않으면 종료
 				exit (-1);
 		}
 	}
@@ -273,5 +279,5 @@ check_buffer (const void *buffer, unsigned size) {
 
 static struct file *
 fd_to_file (int fd) {
-	return thread_current ()->fdt[fd];
+	return thread_current ()->fdt[fd]; // fdt-> 파일디스크립터 테이블이고 fd번호를 인덱스로 file 구조체를 찾는 부분
 }
