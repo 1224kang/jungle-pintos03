@@ -187,12 +187,12 @@ wait (pid_t pid){
 
 bool
 create (const char *file, unsigned initial_size){
-	
+	filesys_create(file, initial_size);
 }
 
 bool
 remove (const char *file){
-	
+	filesys_remove(file);
 }
 
 int
