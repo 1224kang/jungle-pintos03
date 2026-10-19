@@ -18,6 +18,9 @@ void syscall_handler (struct intr_frame *);
 static struct lock file_lock; 
 static void check_buffer (const void *buffer, unsigned size);
 static struct file *fd_to_file (int fd);
+
+struct lock filesys_lock;
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -50,6 +53,7 @@ syscall_handler (struct intr_frame *f) {
 	switch (f->R.rax) {
 		case SYS_HALT:
 			halt ();
+			
 			break;
 
 		case SYS_EXIT:
@@ -187,12 +191,26 @@ wait (pid_t pid){
 
 bool
 create (const char *file, unsigned initial_size){
-	filesys_create(file, initial_size);
+	if (!check_address(file))
+	{
+		exit(-1); 
+	}
+	lock_acquire(&filesys_lock);
+	bool success = filesys_create(file, initial_size);
+	lock_release(&filesys_lock);
+	return success;
 }
 
 bool
 remove (const char *file){
-	filesys_remove(file);
+		if (!check_address(file))
+	{
+		exit(-1); 
+	}
+	lock_acquire(&filesys_lock);
+	bool success = filesys_remove(file);;
+	lock_release(&filesys_lock);
+	return success; 
 }
 
 int
@@ -207,6 +225,14 @@ filesize (int fd){
 
 int
 read (int fd, void *buffer, unsigned size){
+	struct thread *t = thread_current();
+ 	if (fd == 0)
+	{
+		input_getc();
+	}
+	else if(fd >= 1)
+	{
+	}
 	return 0;
 }
 
