@@ -18,6 +18,7 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "devices/timer.h" // 임시 include
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -191,13 +192,41 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
+	char* save_ptr;
+	char *buffer;
+	char* letter;
+	char** argv;
+	int argc = 0;
 
+	strlcpy(buffer, file_name, strlen(file_name)+1);
 
+	bool in_word;
+	for (int i = 0; file_name[i] != '\0'; i++) {
+		if (file_name[i] == ' ') {
+			in_word = false;
+		}
+		else if (!in_word) {
+			argc++;
+			in_word = true;
+		}
+	}
+
+	argv = (char **)malloc((argc+1) * sizeof(char*));
+
+	letter = strtok_r(buffer, " ", &save_ptr);
+
+	for (int i = 0; letter != NULL; i++)
+	{
+		argv[i] = letter;
+		letter = strtok_r(NULL, " ", &save_ptr);
+	}
 
 	success = load (argv[0], &_if);
 
 	if(success) setup_arguments(&_if, argc, argv);
-
+	
+	free(argv);
+	free(buffer);
 	
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -229,14 +258,14 @@ setup_arguments(struct intr_frame *if_, int argc, char **argv){
 	//스택에 0 저장
 	stack_push(&rsp, &zero, sizeof(zero));
 	for(int i = argc - 1; i >= 0; i--){
-		u_int64_t address = (uint64_t)argv[i];
+		uint64_t address = (uint64_t)argv[i];
 		stack_push(&rsp, &address, sizeof(address));
 	}
 	if_->R.rdi = argc;
 	if_->R.rsi = rsp;
 	//가짜주소
 	stack_push(&rsp, &zero, sizeof(zero));
-
+	if_->rsp = rsp;
 }
 
 static void
@@ -261,6 +290,7 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	timer_sleep (300);
 	return -1;
 }
 
@@ -272,7 +302,8 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-
+	if (curr->pml4 != NULL)          /* 유저 프로세스일 때만 */
+		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 	process_cleanup ();
 }
 

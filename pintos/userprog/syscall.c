@@ -129,6 +129,8 @@ exit (int status){
 	일반적으로 0은 status 성공
 	0이 아닌 값은 오류를 나타냄
 	*/
+	power_off();
+	return 0;
 }
 
 pid_t
@@ -209,30 +211,6 @@ read (int fd, void *buffer, unsigned size){
 	return 0;
 }
 
-static void
-check_buffer (const void *buffer, unsigned size) {
-	if (buffer == NULL)
-		exit (-1);
-	if (size == 0)
-		return;
-
-	const uint8_t *start = buffer;
-	const uint8_t *end = start + size - 1;
-	if (end < start) // 주석 추가 할 예정
-		exit (-1);
-
-	uint64_t *pml4 = thread_current ()->pml4;
-	for (const uint8_t *p = pg_round_down (start); p <= end; p += PGSIZE) {
-		if (!is_user_vaddr (p) || pml4_get_page (pml4, p) == NULL)
-			exit (-1);
-	}
-}
-
-static struct file *
-fd_to_file (int fd) {
-	return thread_current ()->fdt[fd];
-}
-
 int
 write (int fd, const void *buffer, unsigned size){
 	check_buffer(buffer, size);
@@ -268,3 +246,32 @@ close (int fd){
 	
 }
 
+static void
+check_buffer (const void *buffer, unsigned size) {
+	if (buffer == NULL)
+		exit (-1);
+	if (size == 0)
+		return;
+
+	const uint8_t *start = buffer;
+	const uint8_t *end = start + size - 1;
+	
+	if (end < start) // 주석 추가 할 예정
+		exit (-1);
+
+	uint64_t *pml4 = thread_current ()->pml4;
+
+	for (const uint8_t *p = pg_round_down (start); p <= end; p += PGSIZE) {
+		if (!is_user_vaddr (p)){
+			exit (-1);
+		}
+		if (pml4_get_page (pml4, p) == NULL){
+				exit (-1);
+		}
+	}
+}
+
+static struct file *
+fd_to_file (int fd) {
+	return thread_current ()->fdt[fd];
+}
