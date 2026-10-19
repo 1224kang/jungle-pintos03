@@ -259,7 +259,7 @@ check_buffer (const void *buffer, unsigned size) {
 	const uint8_t *end = start + size - 1;    // 버퍼의 마지막 바이트 주소
 	
 	if (end < start)             // start + size가 주소 공간 끝을 넘어 0 근처로 되돌아간 경우(오버플로우) - 종료
-		exit (-1);
+		exit (-1); // uint8_t * : 64비트 (부호x) => 최대값 끝나면 0으로 감
 
 	uint64_t *pml4 = thread_current ()->pml4; // 현재 프로세스의 페이지 테이블(pml4)을 가져옴
 
