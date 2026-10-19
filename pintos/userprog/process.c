@@ -193,10 +193,12 @@ process_exec (void *f_name) {
 
 	/* And then load the binary */
 	char* save_ptr;
-	char *buffer;
+	char* buffer;
 	char* letter;
 	char** argv;
 	int argc = 0;
+
+	buffer = malloc(sizeof(f_name)+1);
 
 	strlcpy(buffer, file_name, strlen(file_name)+1);
 
