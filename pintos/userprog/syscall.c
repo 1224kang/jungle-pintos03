@@ -129,8 +129,7 @@ exit (int status){
 	일반적으로 0은 status 성공
 	0이 아닌 값은 오류를 나타냄
 	*/
-	power_off();
-	return 0;
+	thread_exit();
 }
 
 pid_t
@@ -215,9 +214,10 @@ int
 write (int fd, const void *buffer, unsigned size){
 	check_buffer(buffer, size);
 	
-	if (fd == 1)// 모니터이기 때문에 이때만 콘솔 출력
+	if (fd == 1){// 모니터이기 때문에 이때만 콘솔 출력
 		putbuf(buffer, size); // buffer에서 n개의 문자를 콘솔에 출력하는 함수
 		return size;
+	}
 	if (fd == 0)
 		return -1;
 	

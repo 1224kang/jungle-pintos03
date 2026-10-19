@@ -198,7 +198,7 @@ process_exec (void *f_name) {
 	char** argv;
 	int argc = 0;
 
-	buffer = malloc(sizeof(f_name)+1);
+	buffer = malloc(strlen(file_name)+1);
 
 	strlcpy(buffer, file_name, strlen(file_name)+1);
 
@@ -226,12 +226,13 @@ process_exec (void *f_name) {
 	success = load (argv[0], &_if);
 
 	if(success) setup_arguments(&_if, argc, argv);
-	
+	strlcpy(t->name, argv[0], sizeof(t->name));
 	free(argv);
 	free(buffer);
-	
+
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
+	
 	if (!success)
 		return -1;
 
