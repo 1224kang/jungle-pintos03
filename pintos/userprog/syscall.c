@@ -169,6 +169,8 @@ fork (const char *thread_name){
 	template는 pml4_for_each() in을 사용
 	해당 페이지 테이블 구조를 포함한 전체 사용자 메모리 공간을 복사하지만 전달된 값을 누락 부분을 채워야 함
 	*/
+	process_fork(thread_name);
+
 }
 
 int
