@@ -225,14 +225,35 @@ filesize (int fd){
 
 int
 read (int fd, void *buffer, unsigned size){
+	check_buffer(buffer, size);
+
 	struct thread *t = thread_current();
+
+	if (fd < 0 || fd > __FD_SETSIZE-1) return -1;
  	if (fd == 0)
 	{
-		input_getc();
+		char *buf = (char *)buffer;
+		for (int i = 0; i < size; i++)
+		{
+			buf[i] = input_getc(); 
+		}
+		return size;
 	}
-	else if(fd >= 1)
+	else if (fd == 1)
 	{
+		return -1;
 	}
+	else if(fd >= 2)
+	{
+		#ifdef USERPROG
+			if (t->fdt[fd] == NULL) return -1;	
+			lock_acquire(&filesys_lock);
+			int len = file_read(t->fdt[fd], buffer, size);
+			lock_release(&filesys_lock);
+			return len;
+		#endif
+	}
+	
 	return 0;
 }
 
