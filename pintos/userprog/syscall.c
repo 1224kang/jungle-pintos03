@@ -11,13 +11,17 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "devices/input.h"
+
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
 static struct lock file_lock; 
 static void check_buffer (const void *buffer, unsigned size);
+static bool check_address(const char *file);
 static struct file *fd_to_file (int fd);
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -50,6 +54,7 @@ syscall_handler (struct intr_frame *f) {
 	switch (f->R.rax) {
 		case SYS_HALT:
 			halt ();
+			
 			break;
 
 		case SYS_EXIT:
@@ -108,6 +113,17 @@ syscall_handler (struct intr_frame *f) {
 			exit(-1);
 			break;
 	}
+}
+
+static bool check_address(const char *file)
+{	
+	if (file == NULL) return false;
+	#ifdef USERPROG
+		struct thread *t = thread_current();
+		if (!is_user_vaddr(file)) return false;
+		if (pml4_get_page(t->pml4, file) == NULL) return false;
+		return true;
+	#endif
 }
 
 void
@@ -202,12 +218,26 @@ wait (pid_t pid){
 
 bool
 create (const char *file, unsigned initial_size){
-	
+	if (!check_address(file))
+	{
+		exit(-1); 
+	}
+	lock_acquire(&file_lock);
+	bool success = filesys_create(file, initial_size);
+	lock_release(&file_lock);
+	return success;
 }
 
 bool
 remove (const char *file){
-	
+	if (!check_address(file))
+	{
+		exit(-1); 
+	}
+	lock_acquire(&file_lock);
+	bool success = filesys_remove(file);;
+	lock_release(&file_lock);
+	return success; 
 }
 
 int
@@ -249,6 +279,35 @@ filesize (int fd){
 
 int
 read (int fd, void *buffer, unsigned size){
+	check_buffer(buffer, size);
+
+	struct thread *t = thread_current();
+
+	if (fd < 0 || fd > 128) return -1;
+ 	if (fd == 0)
+	{
+		char *buf = (char *)buffer;
+		for (int i = 0; i < size; i++)
+		{
+			buf[i] = input_getc(); 
+		}
+		return size;
+	}
+	else if (fd == 1)
+	{
+		return -1;
+	}
+	else if(fd >= 2)
+	{
+		#ifdef USERPROG
+			if (t->fdt[fd] == NULL) return -1;	
+			lock_acquire(&file_lock);
+			int len = file_read(t->fdt[fd], buffer, size);
+			lock_release(&file_lock);
+			return len;
+		#endif
+	}
+	
 	return 0;
 }
 
