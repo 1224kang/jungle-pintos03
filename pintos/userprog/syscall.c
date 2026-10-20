@@ -11,9 +11,7 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
-#include "filesys/file.c"
 #include "devices/input.h"
-#include "devices/input.c"
 
 
 void syscall_entry (void);
@@ -118,18 +116,14 @@ syscall_handler (struct intr_frame *f) {
 }
 
 static bool check_address(const char *file)
-{
+{	
 	if (file == NULL) return false;
-	
 	#ifdef USERPROG
 		struct thread *t = thread_current();
-		for (int i = 0; t->fdt[i] != NULL; i++)
-		{
-			if (t->fdt[i] == file) return true;
-		}
+		if (!is_user_vaddr(file)) return false;
+		if (pml4_get_page(t->pml4, file) == NULL) return false;
+		return true;
 	#endif
-	
-	return false;
 }
 
 void
@@ -221,7 +215,7 @@ create (const char *file, unsigned initial_size){
 
 bool
 remove (const char *file){
-		if (!check_address(file))
+	if (!check_address(file))
 	{
 		exit(-1); 
 	}
