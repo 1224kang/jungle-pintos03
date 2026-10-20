@@ -13,6 +13,7 @@
 #include "intrinsic.h"
 #include "devices/input.h"
 #include "filesys/filesys.h"
+#include "threads/palloc.h"
 
 
 
@@ -70,7 +71,7 @@ syscall_handler (struct intr_frame *f) {
 			break;
 		}
 		case SYS_EXEC:
-			f->R.rax = exec((const char *) f->R.rdi);
+			exec((const char *) f->R.rdi);
 			break;
 
 		case SYS_WAIT:
@@ -176,13 +177,15 @@ exec (const char *cmd_line){
 	if(cmd_cpy == NULL) exit(-1);
 
 	size_t len = strlcpy(cmd_cpy, cmd_line, PGSIZE);
+
 	if(len >= PGSIZE){
 		palloc_free_page(cmd_cpy);
 		exit(-1);
 	}
 
 	if(process_exec(cmd_cpy) < 0) exit(-1);
-	
+
+	NOT_REACHED();
 }
 
 int
