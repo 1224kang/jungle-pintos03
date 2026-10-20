@@ -163,6 +163,18 @@ exec (const char *cmd_line){
 	함수는 호출한 스레드의 이름은 변경하지 않음
 	파일 디스크립터는 호출 후에도 계속 열려 있음
  	*/
+	char *cmd_cpy = palloc_get_page(0);
+
+	if(cmd_cpy == NULL) exit(-1);
+
+	size_t len = strlcpy(cmd_cpy, cmd_line, PGSIZE);
+	if(len >= PGSIZE){
+		palloc_free_page(cmd_cpy);
+		exit(-1);
+	}
+
+	if(process_exec(cmd_cpy) < 0) exit(-1);
+	
 }
 
 int
