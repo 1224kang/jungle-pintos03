@@ -66,7 +66,7 @@ syscall_handler (struct intr_frame *f) {
 
 		case SYS_FORK:{
 			f_data = f;
-			f->R.rax = fork (f->R.rdi);
+			f->R.rax = process_fork (f->R.rdi, f);
 			break;
 		}
 		case SYS_EXEC:
@@ -155,11 +155,11 @@ exit (int status){
 	thread_exit();
 }
 
-pid_t
-fork (const char *thread_name){
-	return process_fork(thread_name);
+// pid_t
+// fork (const char *thread_name){
+// 	return process_fork(thread_name, if);
 
-}
+// }
 
 int
 exec (const char *cmd_line){
