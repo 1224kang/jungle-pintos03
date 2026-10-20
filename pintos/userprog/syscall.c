@@ -11,12 +11,17 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "filesys/file.c"
+#include "devices/input.h"
+#include "devices/input.c"
+
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
 static struct lock file_lock; 
 static void check_buffer (const void *buffer, unsigned size);
+static bool check_address(const char *file);
 static struct file *fd_to_file (int fd);
 
 /* System call.
@@ -110,6 +115,21 @@ syscall_handler (struct intr_frame *f) {
 			exit(-1);
 			break;
 	}
+}
+
+static bool check_address(const char *file)
+{
+	if (file == NULL) return false;
+	
+	#ifdef USERPROG
+		struct thread *t = thread_current();
+		for (int i = 0; t->fdt[i] != NULL; i++)
+		{
+			if (t->fdt[i] == file) return true;
+		}
+	#endif
+	
+	return false;
 }
 
 void
@@ -227,7 +247,7 @@ read (int fd, void *buffer, unsigned size){
 
 	struct thread *t = thread_current();
 
-	if (fd < 0 || fd > __FD_SETSIZE-1) return -1;
+	if (fd < 0 || fd > 128) return -1;
  	if (fd == 0)
 	{
 		char *buf = (char *)buffer;
