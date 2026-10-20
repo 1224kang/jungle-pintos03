@@ -19,7 +19,9 @@
 #include "threads/vaddr.h"
 #include "intrinsic.h"
 #include "devices/timer.h" // 임시 include
-#include "synch.h"
+#include "threads/synch.h"
+#include "lib/kernel/list.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -37,7 +39,7 @@ fork_info{
 	struct intr_frame parent_if_;
 	struct semaphore sema;
 	bool success;
-}
+};
 
 /* General process initializer for initd and other process. */
 static void
@@ -355,25 +357,48 @@ stack_push(uint64_t *rsp, const void *data, size_t size){
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
-	timer_sleep (300);
-	return -1;
+process_wait (tid_t child_tid) {
+	struct thread *cur_thread = thread_current ();
+	struct thread *child = NULL;
+	struct list_elem *e;
+
+	for (e = list_begin (&cur_thread->childs); e != list_end (&cur_thread->childs); e = list_next (e)) {
+		struct thread *t = list_entry (e, struct thread, child_elem);
+		if (t->tid == child_tid) {
+			child = t;
+			break;
+		}
+	}
+
+	if (child == NULL)
+		return -1;
+
+	sema_down (&child->parent_sema);        // 자식이 끝날 때까지 대기
+	int status = child->exit_status;        // 해제되기 전에 읽기
+	list_remove (&child->child_elem);       // 두 번 wait 방지
+	sema_up (&child->child_sema);           // 이제 자식이 죽어도 됨
+
+	return status;
 }
 
-/* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-	/* TODO: Your code goes here.
-	 * TODO: Implement process termination message (see
-	 * TODO: project2/process_termination.html).
-	 * TODO: We recommend you to implement process resource cleanup here. */
-	if (curr->pml4 != NULL)          /* 유저 프로세스일 때만 */
+
+	if (curr->pml4 != NULL)
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+
+	while (!list_empty (&curr->childs)) { // 자식 죽기 직전에 부모 기다림, thread_exit까지 간다면 struct thread가 담긴 페이지 해제
+		// 부모가 나중에 wait해서 exit_status를 읽으려 할 시 이미 해제된 메모리를 읽음
+		struct list_elem *e = list_pop_front (&curr->childs);
+		struct thread *c = list_entry (e, struct thread, child_elem);
+		sema_up (&c->child_sema); //이 부분이 부모가 더 이상 너를 필요로 하지 않는다고 말하는 부분 
+	} // 자식이 바로 죽는 것이 아닌 부모가 exit_status를 읽기 위해 좀비 상태로 버티는 중
+
 	process_cleanup ();
+
+	sema_up (&curr->parent_sema);    // 부모 깨우기
+	sema_down (&curr->child_sema);   // 부모가 status 읽을 때까지 대기
 }
 
 /* Free the current process's resources. */
