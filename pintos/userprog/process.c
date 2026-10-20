@@ -19,12 +19,9 @@
 #include "threads/vaddr.h"
 #include "intrinsic.h"
 #include "devices/timer.h" // 임시 include
-<<<<<<< HEAD
-#include "synch.h"
-=======
+#include "threads/synch.h"
 #include "lib/kernel/list.h"
 
->>>>>>> 243987d (feat: wait 구현)
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -42,7 +39,7 @@ fork_info{
 	struct intr_frame parent_if_;
 	struct semaphore sema;
 	bool success;
-}
+};
 
 /* General process initializer for initd and other process. */
 static void
