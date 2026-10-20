@@ -19,8 +19,6 @@ static struct lock file_lock;
 static void check_buffer (const void *buffer, unsigned size);
 static struct file *fd_to_file (int fd);
 
-struct lock filesys_lock;
-
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -195,9 +193,9 @@ create (const char *file, unsigned initial_size){
 	{
 		exit(-1); 
 	}
-	lock_acquire(&filesys_lock);
+	lock_acquire(&file_lock);
 	bool success = filesys_create(file, initial_size);
-	lock_release(&filesys_lock);
+	lock_release(&file_lock);
 	return success;
 }
 
@@ -207,9 +205,9 @@ remove (const char *file){
 	{
 		exit(-1); 
 	}
-	lock_acquire(&filesys_lock);
+	lock_acquire(&file_lock);
 	bool success = filesys_remove(file);;
-	lock_release(&filesys_lock);
+	lock_release(&file_lock);
 	return success; 
 }
 
@@ -247,9 +245,9 @@ read (int fd, void *buffer, unsigned size){
 	{
 		#ifdef USERPROG
 			if (t->fdt[fd] == NULL) return -1;	
-			lock_acquire(&filesys_lock);
+			lock_acquire(&file_lock);
 			int len = file_read(t->fdt[fd], buffer, size);
-			lock_release(&filesys_lock);
+			lock_release(&file_lock);
 			return len;
 		#endif
 	}
