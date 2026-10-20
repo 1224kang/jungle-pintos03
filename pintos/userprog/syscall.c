@@ -237,7 +237,14 @@ open (const char *file){
 
 int
 filesize (int fd){
-	
+	if(fd < 2 || fd >= FILE_MAX) return -1;
+	struct thread *t = thread_current();
+	struct file *f = t->fdt[fd];
+	int size = -1;
+	if(f != NULL){
+		size = (int)file_length(f);
+	}
+	return size;
 }
 
 int
@@ -268,17 +275,34 @@ write (int fd, const void *buffer, unsigned size){
 
 void
 seek (int fd, unsigned position){
-	
+	if(fd < 2 || fd >= FILE_MAX) return;
+	struct thread *t = thread_current();
+	struct file *f = t->fdt[fd];
+	if(f != NULL) file_seek(f, (off_t)position);
 }
 
 unsigned
 tell (int fd){
-	
+	if(fd < 2 || fd >= FILE_MAX) return (unsigned)-1;
+	struct thread *t = thread_current();
+
+	struct file *f = t->fdt[fd];
+	if(f != NULL){
+		return (unsigned)file_tell(f);
+	}
+	return (unsigned)-1;
 }
 
 void
 close (int fd){
-	
+	if(fd < 2 || fd >= FILE_MAX) return;
+	struct thread *t = thread_current();
+
+	struct file *f = t->fdt[fd];
+	if(f != NULL){
+		file_close(f);
+		t->fdt[fd] = NULL;
+	}
 }
 
 static void
