@@ -117,18 +117,21 @@ halt (void){
 	이 방법은 교착 상태 등에 대한 일부 정보를 잃게 됨
 	거의 사용하지 않는 것이 좋음
 	*/
+	power_off();
 }
 
 void
 exit (int status){
 	/*
 	현재 사용자 프로그램 종료
-	status 커널로 돌아감
+	status 커널로 돌아감 
 	프로세스의 부모 wait 프로세스가 해당 프로세스에 대해 종료를 요청한 경우
 	이 상태가 반환
 	일반적으로 0은 status 성공
 	0이 아닌 값은 오류를 나타냄
 	*/
+	struct thread *t = thread_current();
+	t->exit_status = status;
 	thread_exit();
 }
 
@@ -160,6 +163,18 @@ exec (const char *cmd_line){
 	함수는 호출한 스레드의 이름은 변경하지 않음
 	파일 디스크립터는 호출 후에도 계속 열려 있음
  	*/
+	char *cmd_cpy = palloc_get_page(0);
+
+	if(cmd_cpy == NULL) exit(-1);
+
+	size_t len = strlcpy(cmd_cpy, cmd_line, PGSIZE);
+	if(len >= PGSIZE){
+		palloc_free_page(cmd_cpy);
+		exit(-1);
+	}
+
+	if(process_exec(cmd_cpy) < 0) exit(-1);
+	
 }
 
 int
@@ -197,12 +212,39 @@ remove (const char *file){
 
 int
 open (const char *file){
-	
+	struct thread *t = thread_current();
+	if(t->fdt == NULL) return -1; /*fdt 초기화 안됨*/
+
+	if(check_file(file)){
+		return -1;
+	}
+
+	struct file *f = filesys_open(file);
+	if(f == NULL) return -1;
+
+	/*빈 0,1은 쓰니까 스킵*/
+	for(int i = 2; i<FILE_MAX; i++){
+		if(t->fdt[i] == NULL){
+			t->fdt[i] = f;
+			return i;
+		}
+	}
+
+	/*파일 저장소 없음*/
+	file_close(f);
+	return -1;
 }
 
 int
 filesize (int fd){
-	
+	if(fd < 2 || fd >= FILE_MAX) return -1;
+	struct thread *t = thread_current();
+	struct file *f = t->fdt[fd];
+	int size = -1;
+	if(f != NULL){
+		size = (int)file_length(f);
+	}
+	return size;
 }
 
 int
@@ -234,17 +276,34 @@ write (int fd, const void *buffer, unsigned size){
 
 void
 seek (int fd, unsigned position){
-	
+	if(fd < 2 || fd >= FILE_MAX) return;
+	struct thread *t = thread_current();
+	struct file *f = t->fdt[fd];
+	if(f != NULL) file_seek(f, (off_t)position);
 }
 
 unsigned
 tell (int fd){
-	
+	if(fd < 2 || fd >= FILE_MAX) return (unsigned)-1;
+	struct thread *t = thread_current();
+
+	struct file *f = t->fdt[fd];
+	if(f != NULL){
+		return (unsigned)file_tell(f);
+	}
+	return (unsigned)-1;
 }
 
 void
 close (int fd){
-	
+	if(fd < 2 || fd >= FILE_MAX) return;
+	struct thread *t = thread_current();
+
+	struct file *f = t->fdt[fd];
+	if(f != NULL){
+		file_close(f);
+		t->fdt[fd] = NULL;
+	}
 }
 
 static void
@@ -271,8 +330,8 @@ check_buffer (const void *buffer, unsigned size) {
 		if (!is_user_vaddr (p)){             // 페이지가 사용자 영역이 아니면 커널 메모리 침범이므로 종료
 			exit (-1);
 		}
-		if (pml4_get_page (pml4, p) == NULL){ // 해당 페이지가 페이지 테이블에 매핑되어 있지 않으면 종료
-				exit (-1);
+		if (pml4_get_page (pml4, p) == NULL){
+			exit (-1);
 		}
 	}
 }
