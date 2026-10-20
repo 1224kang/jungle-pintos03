@@ -19,6 +19,7 @@
 #include "threads/vaddr.h"
 #include "intrinsic.h"
 #include "devices/timer.h" // 임시 include
+#include "synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -29,6 +30,14 @@ static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
+
+struct 
+fork_info{
+	struct thread *parent;
+	struct intr_frame parent_if_;
+	struct semaphore sema;
+	bool success;
+}
 
 /* General process initializer for initd and other process. */
 static void
@@ -100,14 +109,35 @@ fd_init(){
 	return 0;
 }
 
+
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	struct fork_info* info = malloc(sizeof(struct fork_info));
+	if(info == NULL) return TID_ERROR;//malloc 예외처리
+	info->success = false;
+	
+	sema_init(&info->sema, 0);
+
+	info->parent = thread_current();
+	memcpy(&(info->parent_if_), if_, sizeof(struct intr_frame));
+
+	tid_t result = thread_create (name, PRI_DEFAULT, __do_fork, info);
+	if(result == TID_ERROR){
+		free(info);
+		return TID_ERROR;
+	}
+	sema_down(&info->sema);
+	if(!info->success){
+		free(info);
+		return TID_ERROR;
+	}
+	free(info);
+	return result;
 }
+
 
 #ifndef VM
 /* Duplicate the parent's address space by passing this function to the
@@ -148,14 +178,15 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 static void
 __do_fork (void *aux) {
 	struct intr_frame if_;
-	struct thread *parent = (struct thread *) aux;
+	struct fork_info * info = aux;
+	struct thread *parent = info->parent;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
-	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	memcpy (&if_, &info->parent_if_, sizeof (struct intr_frame));
+	
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -172,18 +203,37 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
+
 	/* TODO: Your code goes here.
 	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
+	if(fd_init()) goto error; //free process 종료시 해줘야 함
+
+	int i = 2;
+	while(i < FILE_MAX){
+		if(parent->fdt[i] != NULL){
+			current->fdt[i] = file_duplicate(parent->fdt[i]);
+			if(current->fdt[i] == NULL) goto error;
+		}
+		i++;
+	}
+
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
-	if (succ)
-		do_iret (&if_);
+
+	if_.R.rax = 0;
+	info->success = true;
+	sema_up(&info->sema);
+	do_iret (&if_);
+
+		
 error:
+	info->success = false;
+	sema_up(&info->sema);
 	thread_exit ();
 }
 
