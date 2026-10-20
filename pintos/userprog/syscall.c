@@ -117,18 +117,21 @@ halt (void){
 	이 방법은 교착 상태 등에 대한 일부 정보를 잃게 됨
 	거의 사용하지 않는 것이 좋음
 	*/
+	power_off();
 }
 
 void
 exit (int status){
 	/*
 	현재 사용자 프로그램 종료
-	status 커널로 돌아감
+	status 커널로 돌아감 
 	프로세스의 부모 wait 프로세스가 해당 프로세스에 대해 종료를 요청한 경우
 	이 상태가 반환
 	일반적으로 0은 status 성공
 	0이 아닌 값은 오류를 나타냄
 	*/
+	struct thread *t = thread_current();
+	t->exit_status = status;
 	thread_exit();
 }
 
@@ -286,7 +289,7 @@ check_buffer (const void *buffer, unsigned size) {
 			exit (-1);
 		}
 		if (pml4_get_page (pml4, p) == NULL){
-				exit (-1);
+			exit (-1);
 		}
 	}
 }
