@@ -79,9 +79,22 @@ initd (void *f_name) {
 
 	process_init ();
 
+	if(fd_init())
+		/*초기화 실패하면?*/
+
 	if (process_exec (f_name) < 0)
 		PANIC("Fail to launch initd\n");
 	NOT_REACHED ();
+}
+
+int
+fd_init(){
+	struct thread *t = thread_current();
+	struct file **fd = calloc(64,sizeof(struct file *));
+	if(fd == NULL) return -1;
+
+	t->fdt = fd;
+	return 0;
 }
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
