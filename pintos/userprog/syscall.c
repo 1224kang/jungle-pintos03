@@ -197,7 +197,27 @@ remove (const char *file){
 
 int
 open (const char *file){
-	
+	struct thread *t = thread_current();
+	if(t->fdt == NULL) return -1; /*fdt 초기화 안됨*/
+
+	if(check_file(file)){
+		return -1;
+	}
+
+	struct file *f = filesys_open(file);
+	if(f == NULL) return -1;
+
+	/*빈 0,1은 쓰니까 스킵*/
+	for(int i = 2; i<FILE_MAX; i++){
+		if(t->fdt[i] == NULL){
+			t->fdt[i] = f;
+			return i;
+		}
+	}
+
+	/*파일 저장소 없음*/
+	file_close(f);
+	return -1;
 }
 
 int
