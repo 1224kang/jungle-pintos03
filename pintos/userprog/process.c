@@ -80,7 +80,10 @@ initd (void *f_name) {
 	process_init ();
 
 	if(fd_init())
+	{
 		/*초기화 실패하면?*/
+	}
+
 
 	if (process_exec (f_name) < 0)
 		PANIC("Fail to launch initd\n");

@@ -12,6 +12,8 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 #include "devices/input.h"
+#include "filesys/filesys.h"
+
 
 
 void syscall_entry (void);
@@ -245,9 +247,11 @@ open (const char *file){
 	struct thread *t = thread_current();
 	if(t->fdt == NULL) return -1; /*fdt 초기화 안됨*/
 
+	/*
 	if(check_file(file)){
 		return -1;
 	}
+	*/
 
 	struct file *f = filesys_open(file);
 	if(f == NULL) return -1;
