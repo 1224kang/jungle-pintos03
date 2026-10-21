@@ -65,21 +65,44 @@ stack_push(uint64_t *rsp, const void *data, size_t size);
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t
 process_create_initd (const char *file_name) {
-	char *fn_copy;
-	tid_t tid;
+    char *fn_copy;
+    tid_t tid;
 
-	/* Make a copy of FILE_NAME.
-	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL)
+    /* Make a copy of FILE_NAME.
+     * Otherwise there's a race between the caller and load(). */
+    fn_copy = palloc_get_page (0);
+    if (fn_copy == NULL)
+        return TID_ERROR;
+    strlcpy (fn_copy, file_name, PGSIZE);
+
+    char *buffer;
+    int word_cnt = 0;
+
+    for (int i = 0; file_name[i] != ' ' && file_name[i] != '\0'; i++) {
+        word_cnt++;
+    }
+
+    buffer = malloc(word_cnt+1);
+    if(buffer == NULL){
+        palloc_free_page (fn_copy);
+        return TID_ERROR;
+    }
+
+    strlcpy(buffer, fn_copy, word_cnt+1);
+
+
+
+    /* Create a new thread to execute FILE_NAME. */
+
+    tid = thread_create (buffer, PRI_DEFAULT, initd, fn_copy);
+    if (tid == TID_ERROR){
+        free(buffer);
+        palloc_free_page (fn_copy);
 		return TID_ERROR;
-	strlcpy (fn_copy, file_name, PGSIZE);
+    }
 
-	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
-	if (tid == TID_ERROR)
-		palloc_free_page (fn_copy);
-	return tid;
+    free(buffer);
+    return tid;
 }
 
 /* A thread function that launches first user process. */
@@ -318,7 +341,6 @@ process_exec (void *f_name) {
 		free(argv);
 		return -1;
 	}
-	strlcpy(t->name, argv[0], sizeof(t->name));
 	free(argv);
 	free(buffer);
 
