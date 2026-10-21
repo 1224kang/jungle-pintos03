@@ -131,10 +131,10 @@ struct thread {
 	unsigned magic;                     /* Detects stack overflow. */
 };
 
-enum fd_type 
+enum fd_type
 {
-	STDOUT,
-	STDIN,
+	FD_STDOUT,
+	FD_STDIN,
 	FD_FILE
 };
 
