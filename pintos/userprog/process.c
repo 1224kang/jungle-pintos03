@@ -437,11 +437,20 @@ process_exit (void) {
 	
 	process_cleanup ();
 	file_close (curr->running_file);
+
 	if (curr -> fdt != NULL){
 		for (int i= 0; i<FILE_MAX; i++){
-			if (curr->fdt[i]->file != NULL){
+			if (curr->fdt[i] != NULL){
 				if (curr->fdt[i]->share == 1){
-					file_close(curr -> fdt[i]->file);
+					if (curr->fdt[i]->fT == FILE){
+						file_close(curr -> fdt[i]->file);
+					}
+					free(curr->fdt[i]);
+				}
+				else{ 
+					if(curr->fdt[i]->share >= 2){
+						curr->fdt[i]->share --;
+					}
 				}
 			}
 		}

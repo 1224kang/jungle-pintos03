@@ -377,13 +377,18 @@ tell (int fd){
 
 void
 close (int fd){
-	if(fd < 2 || fd >= FILE_MAX) return;
+	if(fd < 0 || fd >= FILE_MAX) return;
 	struct thread *t = thread_current();
+	struct file *f = t->fdt[fd]->file;
 
-	struct file *f = t->fdt[fd];
 	if(f != NULL){
-		file_close(f);
-		t->fdt[fd] = NULL;
+		if(t->fdt[fd]->share == 1){
+			file_close(f);
+			t->fdt[fd] = NULL;
+		}else{
+			t->fdt[fd]->share --;
+			t->fdt[fd] = NULL;
+		}
 	}
 }
 
