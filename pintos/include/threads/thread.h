@@ -113,7 +113,8 @@ struct thread {
 	/* Owned by userprog/process.c. */
 	struct file *running_file;
 	uint64_t *pml4;                     /* Page map level 4 */
-	struct file **fdt;
+	//struct file **fdt;
+	struct file_descriptor *fdt[FILE_MAX];
 	int exit_status;
 	struct list childs;
 	struct list_elem child_elem;
@@ -128,6 +129,11 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+};
+
+struct file_descriptor {
+    struct file *file;      // 실제 파일 포인터 (stdin/stdout 식별용 특수 플래그/포인터 포함)
+    int ref_count;          // 이 파일 엔트리를 참조하는 FD 개수
 };
 
 /* If false (default), use round-robin scheduler.
