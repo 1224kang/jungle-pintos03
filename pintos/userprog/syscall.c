@@ -245,8 +245,19 @@ open (const char *file){
 	/*빈 0,1은 쓰니까 스킵*/
 	for(int i = 2; i<FILE_MAX; i++){
 		if(t->fdt[i] == NULL){
-			t->fdt[i] = f;
-			return i;
+			struct file_descriptor *desc = malloc(sizeof(struct file_descriptor));
+
+            if (desc == NULL) {
+                file_close(f);
+                return -1;
+            }
+
+            desc->file = f;
+            desc->fT = FD_FILE;
+            desc->share = 1;
+
+            t->fdt[i] = desc;
+            return i;
 		}
 	}
 
