@@ -13,6 +13,7 @@
 #include "intrinsic.h"
 #include "devices/input.h"
 #include "filesys/filesys.h"
+#include "threads/palloc.h"
 
 
 
@@ -66,11 +67,11 @@ syscall_handler (struct intr_frame *f) {
 
 		case SYS_FORK:{
 			f_data = f;
-			f->R.rax = fork (f->R.rdi);
+			f->R.rax = process_fork (f->R.rdi, f);
 			break;
 		}
 		case SYS_EXEC:
-			f->R.rax = exec((const char *) f->R.rdi);
+			exec((const char *) f->R.rdi);
 			break;
 
 		case SYS_WAIT:
@@ -155,11 +156,11 @@ exit (int status){
 	thread_exit();
 }
 
-pid_t
-fork (const char *thread_name){
-	return process_fork(thread_name);
+// pid_t
+// fork (const char *thread_name){
+// 	return process_fork(thread_name, if);
 
-}
+// }
 
 int
 exec (const char *cmd_line){
@@ -171,18 +172,31 @@ exec (const char *cmd_line){
 	함수는 호출한 스레드의 이름은 변경하지 않음
 	파일 디스크립터는 호출 후에도 계속 열려 있음
  	*/
+	uint8_t *cmd_p = cmd_line;
+	if (!is_user_vaddr (cmd_p) || cmd_p == NULL){
+		return true;
+	}
+
+	uint64_t *pml4 = thread_current ()->pml4;
+	if (pml4_get_page (pml4, cmd_p) == NULL){
+			exit (-1);
+	}
+
+	
 	char *cmd_cpy = palloc_get_page(0);
 
 	if(cmd_cpy == NULL) exit(-1);
 
 	size_t len = strlcpy(cmd_cpy, cmd_line, PGSIZE);
+
 	if(len >= PGSIZE){
 		palloc_free_page(cmd_cpy);
 		exit(-1);
 	}
 
 	if(process_exec(cmd_cpy) < 0) exit(-1);
-	
+
+	NOT_REACHED();
 }
 
 int
