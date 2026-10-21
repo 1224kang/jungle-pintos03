@@ -419,8 +419,7 @@ process_exit (void) {
 		struct thread *c = list_entry (e, struct thread, child_elem);
 		sema_up (&c->child_sema); //이 부분이 부모가 더 이상 너를 필요로 하지 않는다고 말하는 부분 
 	} // 자식이 바로 죽는 것이 아닌 부모가 exit_status를 읽기 위해 좀비 상태로 버티는 중
-
-
+	
 	sema_up (&curr->parent_sema);    // 부모 깨우기
 	sema_down (&curr->child_sema);   // 부모가 status 읽을 때까지 대기
 

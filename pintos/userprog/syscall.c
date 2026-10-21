@@ -24,7 +24,7 @@ static struct lock file_lock;
 static void check_buffer (const void *buffer, unsigned size);
 static bool check_address(const char *file);
 static struct file *fd_to_file (int fd);
-
+static bool check_file(const char *file);
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -223,11 +223,10 @@ open (const char *file){
 	struct thread *t = thread_current();
 	if(t->fdt == NULL) return -1; /*fdt 초기화 안됨*/
 
-	/*
 	if(check_file(file)){
 		return -1;
 	}
-	*/
+	
 
 	struct file *f = filesys_open(file);
 	if(f == NULL) return -1;
@@ -378,4 +377,16 @@ check_buffer (const void *buffer, unsigned size) {
 static struct file *
 fd_to_file (int fd) {
 	return thread_current ()->fdt[fd]; // fdt-> 파일디스크립터 테이블이고 fd번호를 인덱스로 file 구조체를 찾는 부분
+}
+
+static bool
+check_file(const char *file){
+	if (!is_user_vaddr (file) || file == NULL){
+		return true;
+	}
+	uint64_t *pml4 = thread_current ()->pml4;
+	if (pml4_get_page (pml4, file) == NULL){
+			exit (-1);
+		}
+	return false;
 }
