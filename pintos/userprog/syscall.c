@@ -172,6 +172,17 @@ exec (const char *cmd_line){
 	함수는 호출한 스레드의 이름은 변경하지 않음
 	파일 디스크립터는 호출 후에도 계속 열려 있음
  	*/
+	uint8_t *cmd_p = cmd_line;
+	if (!is_user_vaddr (cmd_p) || cmd_p == NULL){
+		return true;
+	}
+
+	uint64_t *pml4 = thread_current ()->pml4;
+	if (pml4_get_page (pml4, cmd_p) == NULL){
+			exit (-1);
+	}
+
+	
 	char *cmd_cpy = palloc_get_page(0);
 
 	if(cmd_cpy == NULL) exit(-1);

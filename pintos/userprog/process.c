@@ -65,21 +65,44 @@ stack_push(uint64_t *rsp, const void *data, size_t size);
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t
 process_create_initd (const char *file_name) {
-	char *fn_copy;
-	tid_t tid;
+    char *fn_copy;
+    tid_t tid;
 
-	/* Make a copy of FILE_NAME.
-	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL)
+    /* Make a copy of FILE_NAME.
+     * Otherwise there's a race between the caller and load(). */
+    fn_copy = palloc_get_page (0);
+    if (fn_copy == NULL)
+        return TID_ERROR;
+    strlcpy (fn_copy, file_name, PGSIZE);
+
+    char *buffer;
+    int word_cnt = 0;
+
+    for (int i = 0; file_name[i] != ' ' && file_name[i] != '\0'; i++) {
+        word_cnt++;
+    }
+
+    buffer = malloc(word_cnt+1);
+    if(buffer == NULL){
+        palloc_free_page (fn_copy);
+        return TID_ERROR;
+    }
+
+    strlcpy(buffer, fn_copy, word_cnt+1);
+
+
+
+    /* Create a new thread to execute FILE_NAME. */
+
+    tid = thread_create (buffer, PRI_DEFAULT, initd, fn_copy);
+    if (tid == TID_ERROR){
+        free(buffer);
+        palloc_free_page (fn_copy);
 		return TID_ERROR;
-	strlcpy (fn_copy, file_name, PGSIZE);
+    }
 
-	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
-	if (tid == TID_ERROR)
-		palloc_free_page (fn_copy);
-	return tid;
+    free(buffer);
+    return tid;
 }
 
 /* A thread function that launches first user process. */
@@ -318,7 +341,6 @@ process_exec (void *f_name) {
 		free(argv);
 		return -1;
 	}
-	//strlcpy(t->name, argv[0], sizeof(t->name));
 	free(argv);
 	free(buffer);
 
@@ -412,20 +434,26 @@ process_exit (void) {
 
 	if (curr->pml4 != NULL)
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
-
+	
+	process_cleanup ();
+	file_close (curr->running_file);
+	if (curr -> fdt != NULL){
+		for (int i= 0; i<FILE_MAX; i++){
+			if (curr->fdt[i] != NULL){
+				file_close(curr -> fdt[i]);
+			}
+		}
+	}
+	free(curr -> fdt);
 	while (!list_empty (&curr->childs)) { // 자식 죽기 직전에 부모 기다림, thread_exit까지 간다면 struct thread가 담긴 페이지 해제
 		// 부모가 나중에 wait해서 exit_status를 읽으려 할 시 이미 해제된 메모리를 읽음
 		struct list_elem *e = list_pop_front (&curr->childs);
 		struct thread *c = list_entry (e, struct thread, child_elem);
 		sema_up (&c->child_sema); //이 부분이 부모가 더 이상 너를 필요로 하지 않는다고 말하는 부분 
 	} // 자식이 바로 죽는 것이 아닌 부모가 exit_status를 읽기 위해 좀비 상태로 버티는 중
-	
+
 	sema_up (&curr->parent_sema);    // 부모 깨우기
 	sema_down (&curr->child_sema);   // 부모가 status 읽을 때까지 대기
-
-	process_cleanup ();
-	
-	file_close (curr->running_file); //프로세스가 종료될때 파일 닫기
 }
 
 /* Free the current process's resources. */
