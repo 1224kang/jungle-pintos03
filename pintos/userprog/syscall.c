@@ -257,13 +257,17 @@ open (const char *file){
 
 int
 filesize (int fd){
-	if(fd < 2 || fd >= FILE_MAX) return -1;
-	struct thread *t = thread_current();
-	struct file *f = t->fdt[fd];
-	int size = -1;
-	if(f != NULL){
-		size = (int)file_length(f);
-	}
+	if (fd < 0 || fd >= FILE_MAX)
+		return -1;
+
+	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
+
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
+		return -1;
+
+	lock_acquire (&file_lock);
+	int size = (int) file_length (file_desc->file);
+	lock_release (&file_lock);
 	return size;
 }
 
@@ -274,8 +278,14 @@ read (int fd, void *buffer, unsigned size){
 	struct thread *t = thread_current();
 
 	if (fd < 0 || fd > 128) return -1;
- 	if (fd == 0)
+
+	struct file_descriptor *file_des = thread_current()->fdt[fd];
+
+	switch (file_des->fT)
 	{
+	case STDOUT:
+		return -1;
+	case STDIN:{
 		char *buf = (char *)buffer;
 		for (int i = 0; i < size; i++)
 		{
@@ -283,11 +293,7 @@ read (int fd, void *buffer, unsigned size){
 		}
 		return size;
 	}
-	else if (fd == 1)
-	{
-		return -1;
-	}
-	else if(fd >= 2)
+	case FD_FILE:
 	{
 		#ifdef USERPROG
 			if (t->fdt[fd] == NULL) return -1;	
@@ -297,6 +303,9 @@ read (int fd, void *buffer, unsigned size){
 			return len;
 		#endif
 	}
+	default:
+		break;
+	}
 	
 	return 0;
 }
@@ -305,38 +314,61 @@ int
 write (int fd, const void *buffer, unsigned size){
 	check_buffer(buffer, size);
 	if (fd < 0 || fd > 128) return -1;
-	if (fd == 1){// 모니터이기 때문에 이때만 콘솔 출력
+
+	// type -> enum - STDOUT, STDIN, FILE
+	struct file_descriptor *file_des = thread_current()->fdt[fd];
+
+	switch (file_des->fT)
+	{
+	case STDOUT:{
 		putbuf(buffer, size); // buffer에서 n개의 문자를 콘솔에 출력하는 함수
 		return size;
+		break;
 	}
-	if (fd == 0)
+	case STDIN:
 		return -1;
-	
-	struct file *file = fd_to_file(fd); // 이거로 열어서 가져와야 함
-	
-	if (file == NULL)
-		return -1;
-	
-	lock_acquire (&file_lock);
-	int written = file_write (file, buffer, size); // file 사용 함수, file구조체 주소로 넘겨줘야 함
-	lock_release (&file_lock);
-	return written;
+	case FD_FILE:{
+		struct file *file = fd_to_file(file_des->file);
+		if (file == NULL)
+			return -1;
+		lock_acquire (&file_lock);
+		int written = file_write (file, buffer, size); // file 사용 함수, file구조체 주소로 넘겨줘야 함
+		lock_release (&file_lock);
+		return written;
+		// break;
+	}
+	default:
+		break;
+	}
 }
 
 void
 seek (int fd, unsigned position){
-	if(fd < 2 || fd >= FILE_MAX) return;
+	if(fd < 0 || fd >= FILE_MAX) return;
 	struct thread *t = thread_current();
-	struct file *f = t->fdt[fd];
+	struct file *f;
+	struct file_descriptor *file_desc = t->fdt[fd];
+
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
+		return ;
+
+	f = file_desc -> file;
+
 	if(f != NULL) file_seek(f, (off_t)position);
 }
 
 unsigned
 tell (int fd){
-	if(fd < 2 || fd >= FILE_MAX) return (unsigned)-1;
+	if(fd < 0 || fd >= FILE_MAX) return (unsigned)-1;
 	struct thread *t = thread_current();
+	struct file *f; 
+	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
 
-	struct file *f = t->fdt[fd];
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
+		return (unsigned)-1;
+
+	f = file_desc->file;
+
 	if(f != NULL){
 		return (unsigned)file_tell(f);
 	}
@@ -345,13 +377,18 @@ tell (int fd){
 
 void
 close (int fd){
-	if(fd < 2 || fd >= FILE_MAX) return;
+	if(fd < 0 || fd >= FILE_MAX) return;
 	struct thread *t = thread_current();
+	struct file *f = t->fdt[fd]->file;
 
-	struct file *f = t->fdt[fd];
 	if(f != NULL){
-		file_close(f);
-		t->fdt[fd] = NULL;
+		if(t->fdt[fd]->share == 1){
+			file_close(f);
+			t->fdt[fd] = NULL;
+		}else{
+			t->fdt[fd]->share --;
+			t->fdt[fd] = NULL;
+		}
 	}
 }
 
