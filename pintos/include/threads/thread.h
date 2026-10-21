@@ -135,7 +135,7 @@ enum fd_type
 {
 	STDOUT,
 	STDIN,
-	FILE
+	FD_FILE
 };
 
 struct file_descriptor {

@@ -262,7 +262,7 @@ filesize (int fd){
 
 	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
 
-	if (file_desc == NULL || file_desc->fT != FILE || file_desc->file == NULL)
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
 		return -1;
 
 	lock_acquire (&file_lock);
@@ -293,7 +293,7 @@ read (int fd, void *buffer, unsigned size){
 		}
 		return size;
 	}
-	case FILE:
+	case FD_FILE:
 	{
 		#ifdef USERPROG
 			if (t->fdt[fd] == NULL) return -1;	
@@ -327,7 +327,7 @@ write (int fd, const void *buffer, unsigned size){
 	}
 	case STDIN:
 		return -1;
-	case FILE:{
+	case FD_FILE:{
 		struct file *file = fd_to_file(file_des->file);
 		if (file == NULL)
 			return -1;
@@ -349,7 +349,7 @@ seek (int fd, unsigned position){
 	struct file *f;
 	struct file_descriptor *file_desc = t->fdt[fd];
 
-	if (file_desc == NULL || file_desc->fT != FILE || file_desc->file == NULL)
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
 		return ;
 
 	f = file_desc -> file;
@@ -364,7 +364,7 @@ tell (int fd){
 	struct file *f; 
 	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
 
-	if (file_desc == NULL || file_desc->fT != FILE || file_desc->file == NULL)
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
 		return (unsigned)-1;
 
 	f = file_desc->file;
