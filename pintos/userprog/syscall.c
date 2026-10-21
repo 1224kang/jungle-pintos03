@@ -243,7 +243,7 @@ open (const char *file){
 	if(f == NULL) return -1;
 
 	/*빈 0,1은 쓰니까 스킵*/
-	for(int i = 2; i<FILE_MAX; i++){
+	for(int i = 0; i<FILE_MAX; i++){
 		if(t->fdt[i] == NULL){
 			struct file_descriptor *desc = malloc(sizeof(struct file_descriptor));
 
