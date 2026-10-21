@@ -111,6 +111,7 @@ struct thread {
 	struct list_elem mlfqs_list_elem; // 동시에 하나만 들어갈 수 있으므로 하나 더 추가 (현재 running_thread, ready_thread 세기 위함)
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
+	struct file *running_file;
 	uint64_t *pml4;                     /* Page map level 4 */
 	struct file **fdt;
 	int exit_status;
