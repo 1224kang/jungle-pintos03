@@ -12,9 +12,7 @@
 #include "threads/vaddr.h"
 #include "threads/fixed_point.h"
 #include "intrinsic.h"
-#ifdef USERPROG
-#include "userprog/process.h"
-#endif
+#include "lib/kernel/list.h"
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -28,9 +26,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
 static struct list all_list;
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -203,6 +199,10 @@ thread_create (const char *name, int priority,
 	/* Initialize thread. */
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
+
+	#ifdef USERPROG
+	list_push_back (&thread_current ()->childs, &t->child_elem);
+	#endif
 
 	if (thread_mlfqs) {
 		t->nice = thread_current()->nice;
@@ -505,6 +505,13 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original = priority;
 	list_init(&t->donations);
 	t->wait_on_lock = NULL;
+	#ifdef USERPROG
+
+	list_init (&t->childs);          // 내 자식들 목록
+	sema_init (&t->child_sema, 0);   // 부모가 신호
+	sema_init (&t->parent_sema, 0);  // 내가 신호
+	t->exit_status = 0;
+	#endif
 
 	list_push_back(&all_list, &t->mlfqs_list_elem);
 }
