@@ -257,13 +257,17 @@ open (const char *file){
 
 int
 filesize (int fd){
-	if(fd < 2 || fd >= FILE_MAX) return -1;
-	struct thread *t = thread_current();
-	struct file *f = t->fdt[fd];
-	int size = -1;
-	if(f != NULL){
-		size = (int)file_length(f);
-	}
+	if (fd < 0 || fd >= FILE_MAX)
+		return -1;
+
+	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
+
+	if (file_desc == NULL || file_desc->fT != FILE || file_desc->file == NULL)
+		return -1;
+
+	lock_acquire (&file_lock);
+	int size = (int) file_length (file_desc->file);
+	lock_release (&file_lock);
 	return size;
 }
 
@@ -340,18 +344,31 @@ write (int fd, const void *buffer, unsigned size){
 
 void
 seek (int fd, unsigned position){
-	if(fd < 2 || fd >= FILE_MAX) return;
+	if(fd < 0 || fd >= FILE_MAX) return;
 	struct thread *t = thread_current();
-	struct file *f = t->fdt[fd];
+	struct file *f;
+	struct file_descriptor *file_desc = t->fdt[fd];
+
+	if (file_desc == NULL || file_desc->fT != FILE || file_desc->file == NULL)
+		return ;
+
+	f = file_desc -> file;
+
 	if(f != NULL) file_seek(f, (off_t)position);
 }
 
 unsigned
 tell (int fd){
-	if(fd < 2 || fd >= FILE_MAX) return (unsigned)-1;
+	if(fd < 0 || fd >= FILE_MAX) return (unsigned)-1;
 	struct thread *t = thread_current();
+	struct file *f; 
+	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
 
-	struct file *f = t->fdt[fd];
+	if (file_desc == NULL || file_desc->fT != FILE || file_desc->file == NULL)
+		return (unsigned)-1;
+
+	f = file_desc->file;
+
 	if(f != NULL){
 		return (unsigned)file_tell(f);
 	}
