@@ -21,6 +21,7 @@
 #include "devices/timer.h" // 임시 include
 #include "threads/synch.h"
 #include "lib/kernel/list.h"
+#include "threads/malloc.h"
 
 #ifdef VM
 #include "vm/vm.h"
@@ -153,21 +154,28 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	if(is_kern_pte(pte)) return true;
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
+	if(parent_page == NULL) return false;
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-
+	newpage = palloc_get_page(PAL_USER);
+	if(!newpage) return false;
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
 
+	memcpy(newpage, parent_page, PGSIZE);
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
+	writable = is_writable(pte);
+
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
-		/* 6. TODO: if fail to insert page, do error handling. */
+		palloc_free_page(newpage);
+		return false;
 	}
 	return true;
 }
@@ -267,10 +275,14 @@ process_exec (void *f_name) {
 	int argc = 0;
 
 	buffer = malloc(strlen(file_name)+1);
+	if(buffer == NULL){
+		palloc_free_page(file_name);
+		return -1;
+	} 
 
 	strlcpy(buffer, file_name, strlen(file_name)+1);
 
-	bool in_word;
+	bool in_word = false;
 	for (int i = 0; file_name[i] != '\0'; i++) {
 		if (file_name[i] == ' ') {
 			in_word = false;
@@ -282,6 +294,11 @@ process_exec (void *f_name) {
 	}
 
 	argv = (char **)malloc((argc+1) * sizeof(char*));
+	if(argv == NULL){
+		palloc_free_page(file_name);
+		free(buffer);
+		return -1;
+	} 
 
 	letter = strtok_r(buffer, " ", &save_ptr);
 
@@ -290,11 +307,18 @@ process_exec (void *f_name) {
 		argv[i] = letter;
 		letter = strtok_r(NULL, " ", &save_ptr);
 	}
+	argv[argc] = NULL;
 
 	success = load (argv[0], &_if);
 
 	if(success) setup_arguments(&_if, argc, argv);
-	strlcpy(t->name, argv[0], sizeof(t->name));
+	else{
+		palloc_free_page(file_name);
+		free(buffer);
+		free(argv);
+		return -1;
+	}
+	//strlcpy(t->name, argv[0], sizeof(t->name));
 	free(argv);
 	free(buffer);
 
@@ -337,6 +361,7 @@ setup_arguments(struct intr_frame *if_, int argc, char **argv){
 	//가짜주소
 	stack_push(&rsp, &zero, sizeof(zero));
 	if_->rsp = rsp;
+	return true;
 }
 
 static void
@@ -395,10 +420,11 @@ process_exit (void) {
 		sema_up (&c->child_sema); //이 부분이 부모가 더 이상 너를 필요로 하지 않는다고 말하는 부분 
 	} // 자식이 바로 죽는 것이 아닌 부모가 exit_status를 읽기 위해 좀비 상태로 버티는 중
 
-	process_cleanup ();
 
 	sema_up (&curr->parent_sema);    // 부모 깨우기
 	sema_down (&curr->child_sema);   // 부모가 status 읽을 때까지 대기
+
+	process_cleanup ();
 }
 
 /* Free the current process's resources. */
