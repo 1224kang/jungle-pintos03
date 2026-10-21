@@ -434,20 +434,26 @@ process_exit (void) {
 
 	if (curr->pml4 != NULL)
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
-
+	
+	process_cleanup ();
+	file_close (curr->running_file);
+	if (curr -> fdt != NULL){
+		for (int i= 0; i<FILE_MAX; i++){
+			if (curr->fdt[i] != NULL){
+				file_close(curr -> fdt[i]);
+			}
+		}
+	}
+	free(curr -> fdt);
 	while (!list_empty (&curr->childs)) { // 자식 죽기 직전에 부모 기다림, thread_exit까지 간다면 struct thread가 담긴 페이지 해제
 		// 부모가 나중에 wait해서 exit_status를 읽으려 할 시 이미 해제된 메모리를 읽음
 		struct list_elem *e = list_pop_front (&curr->childs);
 		struct thread *c = list_entry (e, struct thread, child_elem);
 		sema_up (&c->child_sema); //이 부분이 부모가 더 이상 너를 필요로 하지 않는다고 말하는 부분 
 	} // 자식이 바로 죽는 것이 아닌 부모가 exit_status를 읽기 위해 좀비 상태로 버티는 중
-	
+
 	sema_up (&curr->parent_sema);    // 부모 깨우기
 	sema_down (&curr->child_sema);   // 부모가 status 읽을 때까지 대기
-
-	process_cleanup ();
-	
-	file_close (curr->running_file); //프로세스가 종료될때 파일 닫기
 }
 
 /* Free the current process's resources. */
