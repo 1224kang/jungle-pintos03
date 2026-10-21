@@ -293,7 +293,7 @@ read (int fd, void *buffer, unsigned size){
 int
 write (int fd, const void *buffer, unsigned size){
 	check_buffer(buffer, size);
-	
+	if (fd < 0 || fd > 128) return -1;
 	if (fd == 1){// 모니터이기 때문에 이때만 콘솔 출력
 		putbuf(buffer, size); // buffer에서 n개의 문자를 콘솔에 출력하는 함수
 		return size;
