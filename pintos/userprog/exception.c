@@ -116,6 +116,7 @@ kill (struct intr_frame *f) {
    can find more information about both of these in the
    description of "Interrupt 14--Page Fault Exception (#PF)" in
    [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
+
 static void
 page_fault (struct intr_frame *f) {
 	bool not_present;  /* True: not-present page, false: writing r/o page. */
@@ -134,11 +135,12 @@ page_fault (struct intr_frame *f) {
 	   be assured of reading CR2 before it changed). */
 	intr_enable ();
 
-
 	/* Determine cause. */
-	not_present = (f->error_code & PF_P) == 0;
-	write = (f->error_code & PF_W) != 0;
-	user = (f->error_code & PF_U) != 0;
+	not_present = (f->error_code & PF_P) == 0; // 0이면 페이지가 아예 없음, 1이면 페이지는 있는데 권한 없음
+	write = (f->error_code & PF_W) != 0; // 0이면 읽기 중 폴트, 1이면 쓰기 중 폴트
+	user = (f->error_code & PF_U) != 0; // 0이면 커널모드 폴트, 1이면 유저 모드 폴트
+
+	if (user) exit(-1);
 
 #ifdef VM
 	/* For project 3 and later. */
