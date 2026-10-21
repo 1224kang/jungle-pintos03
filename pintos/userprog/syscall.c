@@ -274,8 +274,14 @@ read (int fd, void *buffer, unsigned size){
 	struct thread *t = thread_current();
 
 	if (fd < 0 || fd > 128) return -1;
- 	if (fd == 0)
+
+	struct file_descriptor *file_des = thread_current()->fdt[fd];
+
+	switch (file_des->fT)
 	{
+	case STDOUT:
+		return -1;
+	case STDIN:{
 		char *buf = (char *)buffer;
 		for (int i = 0; i < size; i++)
 		{
@@ -283,11 +289,7 @@ read (int fd, void *buffer, unsigned size){
 		}
 		return size;
 	}
-	else if (fd == 1)
-	{
-		return -1;
-	}
-	else if(fd >= 2)
+	case FILE:
 	{
 		#ifdef USERPROG
 			if (t->fdt[fd] == NULL) return -1;	
@@ -297,6 +299,9 @@ read (int fd, void *buffer, unsigned size){
 			return len;
 		#endif
 	}
+	default:
+		break;
+	}
 	
 	return 0;
 }
@@ -305,22 +310,32 @@ int
 write (int fd, const void *buffer, unsigned size){
 	check_buffer(buffer, size);
 	if (fd < 0 || fd > 128) return -1;
-	if (fd == 1){// 모니터이기 때문에 이때만 콘솔 출력
+
+	// type -> enum - STDOUT, STDIN, FILE
+	struct file_descriptor *file_des = thread_current()->fdt[fd];
+
+	switch (file_des->fT)
+	{
+	case STDOUT:{
 		putbuf(buffer, size); // buffer에서 n개의 문자를 콘솔에 출력하는 함수
 		return size;
+		break;
 	}
-	if (fd == 0)
+	case STDIN:
 		return -1;
-	
-	struct file *file = fd_to_file(fd); // 이거로 열어서 가져와야 함
-	
-	if (file == NULL)
-		return -1;
-	
-	lock_acquire (&file_lock);
-	int written = file_write (file, buffer, size); // file 사용 함수, file구조체 주소로 넘겨줘야 함
-	lock_release (&file_lock);
-	return written;
+	case FILE:{
+		struct file *file = fd_to_file(file_des->file);
+		if (file == NULL)
+			return -1;
+		lock_acquire (&file_lock);
+		int written = file_write (file, buffer, size); // file 사용 함수, file구조체 주소로 넘겨줘야 함
+		lock_release (&file_lock);
+		return written;
+		// break;
+	}
+	default:
+		break;
+	}
 }
 
 void

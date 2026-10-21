@@ -439,8 +439,10 @@ process_exit (void) {
 	file_close (curr->running_file);
 	if (curr -> fdt != NULL){
 		for (int i= 0; i<FILE_MAX; i++){
-			if (curr->fdt[i] != NULL){
-				file_close(curr -> fdt[i]);
+			if (curr->fdt[i]->file != NULL){
+				if (curr->fdt[i]->share == 1){
+					file_close(curr -> fdt[i]->file);
+				}
 			}
 		}
 	}
