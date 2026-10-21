@@ -13,6 +13,7 @@
 #include "intrinsic.h"
 #include "devices/input.h"
 #include "filesys/filesys.h"
+#include "threads/palloc.h"
 
 
 
@@ -66,11 +67,11 @@ syscall_handler (struct intr_frame *f) {
 
 		case SYS_FORK:{
 			f_data = f;
-			f->R.rax = fork (f->R.rdi);
+			f->R.rax = process_fork (f->R.rdi, f);
 			break;
 		}
 		case SYS_EXEC:
-			f->R.rax = exec((const char *) f->R.rdi);
+			exec((const char *) f->R.rdi);
 			break;
 
 		case SYS_WAIT:
@@ -155,11 +156,11 @@ exit (int status){
 	thread_exit();
 }
 
-pid_t
-fork (const char *thread_name){
-	return process_fork(thread_name);
+// pid_t
+// fork (const char *thread_name){
+// 	return process_fork(thread_name, if);
 
-}
+// }
 
 int
 exec (const char *cmd_line){
@@ -176,13 +177,15 @@ exec (const char *cmd_line){
 	if(cmd_cpy == NULL) exit(-1);
 
 	size_t len = strlcpy(cmd_cpy, cmd_line, PGSIZE);
+
 	if(len >= PGSIZE){
 		palloc_free_page(cmd_cpy);
 		exit(-1);
 	}
 
 	if(process_exec(cmd_cpy) < 0) exit(-1);
-	
+
+	NOT_REACHED();
 }
 
 int
