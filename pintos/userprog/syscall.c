@@ -114,6 +114,9 @@ syscall_handler (struct intr_frame *f) {
 			close((int) f->R.rdi);
 			break;
 
+		case SYS_DUP2:
+			f->R.rax = ((int)f->R.rdi, (int)f->R.rsi);
+
 		default:
 			exit(-1);
 			break;
@@ -448,4 +451,36 @@ check_file(const char *file){
 			exit (-1);
 		}
 	return false;
+}
+
+int dup2(int oldfd, int newfd){
+	struct thread *t = thread_current();
+	struct file_descriptor** c_fdt = t->fdt;
+
+	if(c_fdt == NULL) return -1;
+
+	if((oldfd < 0 || oldfd >=FILE_MAX) ||
+	(newfd < 0 || newfd >=FILE_MAX))  
+	return -1;
+
+	if(c_fdt[oldfd] == NULL) return -1;
+
+	if(c_fdt[oldfd] == c_fdt[newfd]) return newfd;
+
+	if(c_fdt[newfd]!=NULL){
+		if(c_fdt[newfd]->share == 1){
+			if(c_fdt[newfd]->fT == FILE){
+				file_close(c_fdt[newfd]->file);
+			}	
+			free(c_fdt[newfd]);
+			}else{
+				c_fdt[newfd]->share--;
+			}
+
+	}
+
+	c_fdt[newfd] = c_fdt[oldfd];
+	c_fdt[newfd]->share++;
+
+	return newfd;
 }
