@@ -446,6 +446,8 @@ process_exit (void) {
 	sema_down (&curr->child_sema);   // 부모가 status 읽을 때까지 대기
 
 	process_cleanup ();
+	
+	file_close (curr->running_file); //프로세스가 종료될때 파일 닫기
 }
 
 /* Free the current process's resources. */
@@ -573,6 +575,9 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	//추가
+	file_deny_write(file); //실행 중 읽기 불가
+	t->running_file = file; //스레드가 실행중인 파일 저장
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -655,7 +660,7 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	//file_close (file); 이 로직은 로딩하자마자 파일을 닫아버림, 그래서 file_deny_write가 취소됨
 	return success;
 }
 
