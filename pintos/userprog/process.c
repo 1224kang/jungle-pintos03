@@ -128,12 +128,32 @@ initd (void *f_name) {
 int
 fd_init(){
 	struct thread *t = thread_current();
-	struct file **fd = calloc(64,sizeof(struct file *));
+	struct file_descriptor **fd = calloc(FILE_MAX, sizeof(struct file_descriptor *));
 	if(fd == NULL) return -1;
+
+	fd[0] = malloc(sizeof(struct file_descriptor));
+	if(fd[0] == NULL){
+		free(fd);
+		return -1;
+	} 
+	fd[0]->fT = STDIN;
+	fd[0]->file = NULL;
+	fd[0]->share = 1;	
+	
+	fd[1] = malloc(sizeof(struct file_descriptor));
+	if(fd[1] == NULL){
+		free(fd[0]);
+		free(fd);
+		return -1;
+	} 
+	fd[1]->fT = STDOUT;
+	fd[1]->file = NULL;
+	fd[1]->share = 1;
 
 	t->fdt = fd;
 	return 0;
 }
+
 
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
