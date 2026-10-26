@@ -69,7 +69,10 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
 	struct hash_elem *found=hash_find(&spt->hash_table,&page->hash_elem);
-	const struct page *p = hash_entry(found, struct page, hash_elem);
+	if(found==NULL){
+		return page;
+	}
+	page = hash_entry(found, struct page, hash_elem);
 	return page;
 }
 
