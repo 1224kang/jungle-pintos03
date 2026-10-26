@@ -92,10 +92,6 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
-	struct hash_elem* found=hash_delete(&spt->hash_table,&page->hash_elem);
-	if(found==NULL){
-		return false;
-	}
 	vm_dealloc_page (page);
 	return true;
 }
@@ -119,14 +115,17 @@ vm_evict_frame (void) {
 	return NULL;
 }
 
-/* palloc() and get frame. If there is no available page, evict the page
- * and return it. This always return valid address. That is, if the user pool
- * memory is full, this function evicts the frame to get the available memory
- * space.*/
+/* 
+ * palloc()을 호출하여 프레임을 확보합니다. 
+ * 사용 가능한 페이지가 없다면, 기존 페이지를 내보내고(evict) 해당 페이지를 반환합니다. 
+ * 이 함수는 항상 유효한 주소를 반환합니다. 
+ * 즉, 사용자 풀(user pool) 메모리가 가득 찼을 경우,
+ * 이 함수는 프레임을 내보내어 사용 가능한 메모리 공간을 확보합니다.*/
 static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -172,7 +171,7 @@ vm_claim_page (void *va UNUSED) {
 	return vm_do_claim_page (page);
 }
 
-/* Claim the PAGE and set up the mmu. */
+/* 페이지에 물리 프레임을 할당 and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
