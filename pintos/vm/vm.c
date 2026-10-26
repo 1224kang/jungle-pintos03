@@ -63,12 +63,13 @@ err:
 	return false;
 }
 
-/* Find VA from spt and return page. On error, return NULL. */
+/* spt에서 VA를 찾아 해당 페이지를 반환한다. 오류 발생 시 NULL을 반환한다. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
-
+	struct hash_elem *found=hash_find(&spt->hash_table,&page->hash_elem);
+	const struct page *p = hash_entry(found, struct page, hash_elem);
 	return page;
 }
 
@@ -78,12 +79,20 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-
+	struct hash_elem *prev = hash_insert(&spt->hash_table, &page->hash_elem);
+	if(prev==NULL){
+		succ=true;
+	}
 	return succ;
 }
 
+
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
+	struct hash_elem* found=hash_delete(&spt->hash_table,&page->hash_elem);
+	if(found==NULL){
+		return false;
+	}
 	vm_dealloc_page (page);
 	return true;
 }
