@@ -1,4 +1,4 @@
-#ifndef VM_VM_H
+#define VM_VM_H
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
@@ -37,10 +37,10 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
-/* The representation of "page".
- * This is kind of "parent class", which has four "child class"es, which are
- * uninit_page, file_page, anon_page, and page cache (project4).
- * DO NOT REMOVE/MODIFY PREDEFINED MEMBER OF THIS STRUCTURE. */
+/* '페이지(page)'를 나타내는 구조체입니다.
+ * 일종의 '부모 클래스' 역할을 하며, uninit_page, file_page, anon_page, 
+ * 그리고 page cache(프로젝트 4)라는 네 가지 '자식 클래스'를 포함합니다.
+ * 이 구조체에 미리 정의된 멤버를 삭제하거나 수정하지 마십시오. */
 struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
@@ -67,10 +67,10 @@ struct frame {
 	struct page *page;
 };
 
-/* The function table for page operations.
- * This is one way of implementing "interface" in C.
- * Put the table of "method" into the struct's member, and
- * call it whenever you needed. */
+/* 페이지 작업용 함수 테이블.
+ * 이는 C 언어에서 '인터페이스'를 구현하는 한 가지 방법입니다.
+ * '메서드' 테이블을 구조체의 멤버로 포함시킨 뒤,
+ * 필요할 때마다 이를 호출하면 됩니다. */
 struct page_operations {
 	bool (*swap_in) (struct page *, void *);
 	bool (*swap_out) (struct page *);
