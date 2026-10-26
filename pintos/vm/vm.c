@@ -68,6 +68,7 @@ struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
+	page->va = pg_round_down(va); // 해시 테이블 인덱스 == 페이지 인덱스 va로 해당 블록을 찾아감(0번째 1번째 등등...)
 	struct hash_elem *found=hash_find(&spt->hash_table,&page->hash_elem);
 	if(found==NULL){
 		return page;
