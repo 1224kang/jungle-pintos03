@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "mmu.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -124,8 +125,15 @@ vm_evict_frame (void) {
  * 이 함수는 프레임을 내보내어 사용 가능한 메모리 공간을 확보합니다.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
+	struct frame *frame = malloc(sizeof(struct frame));
 	/* TODO: Fill this function. */
+	frame->kva = palloc_get_page(PAL_USER);
+	if (frame->kva == NULL) {
+		free(frame);
+		PANIC("todo");
+	}
+
+	frame->page = NULL;
 
 
 	ASSERT (frame != NULL);
@@ -168,6 +176,10 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
+	page = spt_find_page(&thread_current()->spt, va);
+	if (page == NULL) {
+		return false;
+	}
 
 	return vm_do_claim_page (page);
 }
@@ -182,7 +194,11 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-
+	if (pml4_get_page(thread_current()->pml4, page->va) == NULL) {
+		if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable )) {
+			return false;
+		}
+	}
 	return swap_in (page, frame->kva);
 }
 
