@@ -45,8 +45,10 @@ static bool page_less (const struct hash_elem *a, const struct hash_elem *b, voi
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
 bool
-vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
-		vm_initializer *init, void *aux) {
+vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) {
+// → init == anon_initializer()가 등록됩니다. 
+// 이후 실제로 해당 주소에 접근하면 Page Fault 발생 
+// → anon_initializer()가 실행되어 frame을 할당하고 0으로 초기화됩니다.
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
@@ -54,11 +56,29 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
+
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
 
 		/* TODO: Insert the page into the spt. */
+		struct page *page = malloc(sizeof(struct page));
+		
+		bool (*page_initializer) (struct page *, enum vm_type, void *);
+		
+		switch (VM_TYPE(type)) {
+			case VM_ANON:
+				page_initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				page_initializer = file_backed_initializer;
+				break;
+		}
+		uninit_new(page, upage, init, type, aux, page_initializer);
+		page->writable = writable;
+		
+		return spt_insert_page(spt, page);
+
 	}
 err:
 	return false;
@@ -71,10 +91,7 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	/* TODO: Fill this function. */
 	page->va = pg_round_down(va); 
 	struct hash_elem *found=hash_find(&spt->hash_table,&page->hash_elem);
-	if(found==NULL){
-		return page;
-	}
-	page = hash_entry(found, struct page, hash_elem);
+	const struct page *p = hash_entry(found, struct page, hash_elem);                                                                                                                                                                                                                                
 	return page;
 }
 
