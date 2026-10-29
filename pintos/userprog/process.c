@@ -629,10 +629,11 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
 		bool writable);
 
-/* Loads an ELF executable from FILE_NAME into the current thread.
- * Stores the executable's entry point into *RIP
- * and its initial stack pointer into *RSP.
- * Returns true if successful, false otherwise. */
+/* 
+ * FILE_NAME에 지정된 ELF 실행 파일을 현재 스레드로 로드합니다.
+ * 실행 파일의 진입점(entry point)을 *RIP에 저장하고,
+ * 초기 스택 포인터를 *RSP에 저장합니다.
+ * 성공하면 true를, 그렇지 않으면 false를 반환합니다. */
 static bool
 load (const char *file_name, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
@@ -802,20 +803,15 @@ validate_segment (const struct Phdr *phdr, struct file *file) {
 /* load() helpers. */
 static bool install_page (void *upage, void *kpage, bool writable);
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
+/* FILE의 오프셋 OFS에서 시작하는 세그먼트를 주소 UPAGE에 로드한다.
+ * 총 READ_BYTES + ZERO_BYTES 바이트만큼의 가상 메모리가 다음과 같이 초기화된다:
  *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
+ * - UPAGE부터 시작하는 READ_BYTES 바이트는 FILE의 오프셋 OFS 위치에서 읽어와야 한다.
+ * - UPAGE + READ_BYTES부터 시작하는 ZERO_BYTES 바이트는 0으로 채워져야 한다.
  *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
- *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+ * 이 함수를 통해 초기화된 페이지는 WRITABLE이 참(true)일 경우 사용자 프로세스가 쓸 수 있어야 하며,
+ * 그렇지 않은 경우에는 읽기 전용이어야 한다.
+ * 성공하면 참(true)을 반환하고, 메모리 할당 오류나 디스크 읽기 오류가 발생하면 거짓(false)을 반환한다. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
@@ -875,15 +871,12 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 
-/* Adds a mapping from user virtual address UPAGE to kernel
- * virtual address KPAGE to the page table.
- * If WRITABLE is true, the user process may modify the page;
- * otherwise, it is read-only.
- * UPAGE must not already be mapped.
- * KPAGE should probably be a page obtained from the user pool
- * with palloc_get_page().
- * Returns true on success, false if UPAGE is already mapped or
- * if memory allocation fails. */
+/* 페이지 테이블에 사용자 가상 주소 `UPAGE`에서 커널 가상 주소 `KPAGE`로의 매핑을 추가한다.
+ * `WRITABLE`이 참(true)이면 사용자 프로세스가 해당 페이지를 수정할 수 있으며,
+ * 그렇지 않은 경우 읽기 전용이 된다.
+ * `UPAGE`는 이미 매핑되어 있어서는 안 된다.
+ * `KPAGE`는 `palloc_get_page()`를 사용하여 사용자 풀(user pool)에서 할당받은 페이지여야 한다.
+ * 성공하면 참(true)을 반환하고, `UPAGE`가 이미 매핑되어 있거나 메모리 할당에 실패하면 거짓(false)을 반환한다. */
 static bool
 install_page (void *upage, void *kpage, bool writable) {
 	struct thread *t = thread_current ();
@@ -903,22 +896,27 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	
+	struct lazy_load_arg *lazy_load_arg = aux;
+	
+	file_seek(lazy_load_arg -> file, lazy_load_arg -> ofs);
+
+	if(file_read(lazy_load_arg -> file, page ->frame -> kva, lazy_load_arg ->read_bytes )!=(int) lazy_load_arg->read_bytes){
+		free(lazy_load_arg);
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	return true;
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
- *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
- *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
- *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+
+/*FILE의 오프셋 OFS에서 시작하는 세그먼트를 UPAGE 주소에 로드합니다. 
+ * 총 READ_BYTES + ZERO_BYTES 바이트만큼의 가상 메모리가 다음과 같이 초기화됩니다.
+ * - UPAGE부터 시작하는 READ_BYTES 바이트는 FILE의 오프셋 OFS 위치에서 읽어와야 합니다.
+ * - UPAGE + READ_BYTES 위치부터 시작하는 ZERO_BYTES 바이트는 0으로 채워져야 합니다.
+ * 이 함수를 통해 초기화된 페이지는 WRITABLE이 참(true)인 경우 사용자 프로세스에서 쓰기가 가능해야 하며, 
+ * 그렇지 않은 경우에는 읽기 전용이어야 합니다.
+ * 성공하면 참(true)을 반환하고, 메모리 할당 오류나 디스크 읽기 오류가 발생하면 거짓(false)을 반환합니다. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
@@ -934,9 +932,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		struct lazy_load_arg *lazy_load_arg=malloc(sizeof(struct lazy_load_arg));                                                                                                                   
+		lazy_load_arg->file=file;
+		lazy_load_arg->ofs=ofs;
+		lazy_load_arg->read_bytes=page_read_bytes;
+		lazy_load_arg->zero_bytes=page_zero_bytes;
+		lazy_load_arg->writable=writable;
+
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+					writable, lazy_load_segment, lazy_load_arg))
 			return false;
 
 		/* Advance. */
@@ -952,11 +956,12 @@ static bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
-
-	/* TODO: Map the stack on stack_bottom and claim the page immediately.
-	 * TODO: If success, set the rsp accordingly.
-	 * TODO: You should mark the page is stack. */
-	/* TODO: Your code goes here */
+	
+	/* TODO: stack_bottom 위치에 스택을 매핑하고 해당 페이지를 즉시 할당(claim)하십시오.
+	 * TODO: 성공 시, rsp를 그에 맞춰 설정하십시오.
+	 * TODO: 해당 페이지가 스택임을 표시해야 합니다. */
+	/* TODO: 여기에 코드를 작성하십시오. */
+	
 
 	return success;
 }
