@@ -86,21 +86,24 @@ err:
 
 /* spt에서 VA를 찾아 해당 페이지를 반환한다. 오류 발생 시 NULL을 반환한다. */
 struct page *
-spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
+spt_find_page (struct supplemental_page_table *spt, void *va) {
+	struct page page;
 	/* TODO: Fill this function. */
-	page->va = pg_round_down(va); 
-	struct hash_elem *found=hash_find(&spt->hash_table,&page->hash_elem);
-	const struct page *p = hash_entry(found, struct page, hash_elem);                                                                                                                                                                                                                                
-	return page;
+	page.va = pg_round_down(va); 
+	struct hash_elem *found = hash_find(&spt->hash_table, &page.hash_elem);
+	if (found == NULL) {
+		return NULL;
+	}
+	struct page *p = hash_entry(found, struct page, hash_elem);
+	return p;
 }
 
 /* Insert PAGE into spt with validation. */
 bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
-	int succ = false;
+spt_insert_page (struct supplemental_page_table *spt, struct page *page) {
+	bool succ = false;
 	/* TODO: Fill this function. */
-	if (spt_find_page(&spt, page->va) == NULL) {
+	if (spt_find_page(spt, page->va) == NULL) {
 		hash_insert(&spt->hash_table, &page->hash_elem);
 		succ = true;
 	}
@@ -111,8 +114,8 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page U
 
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
-	vm_dealloc_page (page);
-	return true;
+	hash_delete(&spt->hash_table, &page->hash_elem);
+	vm_dealloc_page(page);
 }
 
 /* Get the struct frame, that will be evicted. */
