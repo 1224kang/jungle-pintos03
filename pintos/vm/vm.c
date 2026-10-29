@@ -86,7 +86,7 @@ err:
 
 /* spt에서 VA를 찾아 해당 페이지를 반환한다. 오류 발생 시 NULL을 반환한다. */
 struct page *
-spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
+spt_find_page (struct supplemental_page_table *spt, void *va) {
 	struct page page;
 	/* TODO: Fill this function. */
 	page.va = pg_round_down(va); 
@@ -100,10 +100,10 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 
 /* Insert PAGE into spt with validation. */
 bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
-	int succ = false;
+spt_insert_page (struct supplemental_page_table *spt, struct page *page) {
+	bool succ = false;
 	/* TODO: Fill this function. */
-	if (spt_find_page(&spt, page->va) == NULL) {
+	if (spt_find_page(spt, page->va) == NULL) {
 		hash_insert(&spt->hash_table, &page->hash_elem);
 		succ = true;
 	}
