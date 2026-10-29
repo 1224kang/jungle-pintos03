@@ -87,12 +87,15 @@ err:
 /* spt에서 VA를 찾아 해당 페이지를 반환한다. 오류 발생 시 NULL을 반환한다. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
+	struct page page;
 	/* TODO: Fill this function. */
-	page->va = pg_round_down(va); 
-	struct hash_elem *found=hash_find(&spt->hash_table,&page->hash_elem);
-	const struct page *p = hash_entry(found, struct page, hash_elem);                                                                                                                                                                                                                                
-	return page;
+	page.va = pg_round_down(va); 
+	struct hash_elem *found = hash_find(&spt->hash_table, &page.hash_elem);
+	if (found == NULL) {
+		return NULL;
+	}
+	struct page *p = hash_entry(found, struct page, hash_elem);
+	return p;
 }
 
 /* Insert PAGE into spt with validation. */
