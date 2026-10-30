@@ -168,8 +168,9 @@ vm_get_frame (void) {
 }
 
 /* Growing the stack. */
-static struct page
+static void
 vm_stack_growth (void *addr UNUSED) {
+
 }
 
 /* Handle the fault on write_protected page */
