@@ -46,10 +46,6 @@ static bool page_less (const struct hash_elem *a, const struct hash_elem *b, voi
  * `vm_alloc_page`. */
 bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) {
-// → init == anon_initializer()가 등록됩니다. 
-// 이후 실제로 해당 주소에 접근하면 Page Fault 발생 
-// → anon_initializer()가 실행되어 frame을 할당하고 0으로 초기화됩니다.
-
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
@@ -63,6 +59,9 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 
 		/* TODO: Insert the page into the spt. */
 		struct page *page = malloc(sizeof(struct page));
+		if(page==NULL){
+			goto err;
+		}
 		
 		bool (*page_initializer) (struct page *, enum vm_type, void *);
 		
@@ -73,11 +72,18 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 			case VM_FILE:
 				page_initializer = file_backed_initializer;
 				break;
+			default:
+				free(page);
+				goto err;
 		}
 		uninit_new(page, upage, init, type, aux, page_initializer);
 		page->writable = writable;
 		
-		return spt_insert_page(spt, page);
+		if(!spt_insert_page(spt, page)){
+			free(page);
+			goto err;
+		}
+		return true;
 
 	}
 err:
@@ -162,7 +168,7 @@ vm_get_frame (void) {
 }
 
 /* Growing the stack. */
-static void
+static struct page
 vm_stack_growth (void *addr UNUSED) {
 }
 
@@ -173,12 +179,48 @@ vm_handle_wp (struct page *page UNUSED) {
 
 /* Return true on success */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+vm_try_handle_fault (struct intr_frame *f, void *addr,
+		bool user, bool write, bool not_present) {
+	struct supplemental_page_table *spt = &thread_current ()->spt;
 	struct page *page = NULL;
+	uintptr_t rsp;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	if(addr==NULL || is_kernel_vaddr(addr)){
+		return false;
+	}
+	uintptr_t va=addr;
+
+	//page table 매핑 여부 
+	if(!not_present){
+		return false;
+	}
+
+	//spt에 존재하지 않을때 
+	page=spt_find_page(spt,addr);
+	if(page==NULL){
+		//유저 모드 폴트인 경우 
+		if(user) 
+			rsp=f->rsp;
+		//커널 폴트인 경우 
+		else 	
+			rsp=thread_current()->rsp;
+		
+		//스택 확장 범위 검사 
+		if((USER_STACK-(1<<20)) <= va && va < USER_STACK && rsp-8 <= va){
+			vm_stack_growth(pg_round_down(addr));
+			return vm_claim_page(pg_round_down(addr));
+
+		}else{
+			return false;
+		}
+	}
+	//spt에 존재할 때 
+	else{
+		if(write && !(page->writable)){ //write 권한 검사 
+			return false;
+		}
+	}
 
 	return vm_do_claim_page (page);
 }
