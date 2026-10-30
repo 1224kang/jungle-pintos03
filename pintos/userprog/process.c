@@ -896,17 +896,17 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
-	
 	struct lazy_load_arg *lazy_load_arg = aux;
-	
-	file_seek(lazy_load_arg -> file, lazy_load_arg -> ofs);
 
-	if(file_read(lazy_load_arg -> file, page ->frame -> kva, lazy_load_arg ->read_bytes )!=(int) lazy_load_arg->read_bytes){
+	memset(page->frame->kva + lazy_load_arg->read_bytes, 0, lazy_load_arg->zero_bytes);
+	
+	file_seek(lazy_load_arg->file, lazy_load_arg->ofs);
+
+	if(file_read(lazy_load_arg->file, page->frame->kva, lazy_load_arg->read_bytes) != lazy_load_arg->read_bytes){
 		free(lazy_load_arg);
-		palloc_free_page(page->frame->kva);
 		return false;
 	}
-	free(aux);  /* 페이지 로드가 성공했으므로 지연 로딩용 메타데이터(aux)를 해제하여 누수 방지 */
+	free(lazy_load_arg);
 	return true;
 }
 
@@ -934,19 +934,19 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		struct lazy_load_arg *lazy_load_arg=malloc(sizeof(struct lazy_load_arg));                                                                                                                   
-		lazy_load_arg->file=file;
-		lazy_load_arg->ofs=ofs;
-		lazy_load_arg->read_bytes=page_read_bytes;
-		lazy_load_arg->zero_bytes=page_zero_bytes;
-		lazy_load_arg->writable=writable;
+		lazy_load_arg->file = file;
+		lazy_load_arg->ofs = ofs;
+		lazy_load_arg->read_bytes = page_read_bytes;
+		lazy_load_arg->zero_bytes = page_zero_bytes;
+		lazy_load_arg->writable = writable;
 
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, lazy_load_arg))
+		if (!vm_alloc_page_with_initializer (VM_ANON, upage, writable, lazy_load_segment, lazy_load_arg))
 			return false;
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
+		ofs += page_read_bytes;
 		upage += PGSIZE;
 	}
 	return true;
