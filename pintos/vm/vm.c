@@ -186,7 +186,9 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 	uintptr_t rsp;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	if(addr==NULL || is_kernel_vaddr(addr)){
+
+	//주소 유효성 검사
+	if(addr == NULL || is_kernel_vaddr(addr)){
 		return false;
 	}
 	uintptr_t va = (uintptr_t)addr;
@@ -197,14 +199,14 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 	}
 
 	//spt에 존재하지 않을때 
-	page=spt_find_page(spt,addr);
-	if(page==NULL){
+	page = spt_find_page(spt,addr);
+	if(page == NULL){
 		//유저 모드 폴트인 경우 
 		if(user) 
-			rsp=f->rsp;
+			rsp = f->rsp;
 		//커널 폴트인 경우 
 		else 	
-			rsp=thread_current()->rsp;
+			rsp = thread_current()->rsp;
 		
 		//스택 확장 범위 검사 
 		if((USER_STACK-(1<<20)) <= va && va < USER_STACK && rsp-8 <= va){
@@ -212,9 +214,8 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 			return vm_claim_page(pg_round_down(addr));
 		}
 		return false;
-		
 	}
-	
+
 	//write 권한 검사 
 	if(write && !(page->writable)){ 
 		return false;
