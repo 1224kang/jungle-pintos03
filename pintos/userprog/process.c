@@ -906,6 +906,7 @@ lazy_load_segment (struct page *page, void *aux) {
 		palloc_free_page(page->frame->kva);
 		return false;
 	}
+	free(aux);  /* 페이지 로드가 성공했으므로 지연 로딩용 메타데이터(aux)를 해제하여 누수 방지 */
 	return true;
 }
 
