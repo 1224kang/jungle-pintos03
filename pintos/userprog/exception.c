@@ -125,14 +125,16 @@ page_fault (struct intr_frame *f) {
 	void *fault_addr;  /* Fault address. */
 
 	
-	/* 오류를 유발한 주소, 즉 오류를 일으키며 접근했던 가상 주소를 구한다.
-	 * 이 주소는 코드 영역을 가리킬 수도 있고 데이터 영역을 가리킬 수도 있다. 
-	 * 반드시 오류를 유발한 명령어의 주소인 것은 아니다(명령어 주소는 f->rip에 담겨 있다). */
+	/* Obtain faulting address, the virtual address that was
+	   accessed to cause the fault.  It may point to code or to
+	   data.  It is not necessarily the address of the instruction
+	   that caused the fault (that's f->rip). */
 
 	fault_addr = (void *) rcr2();
 
 	
-	/* 인터럽트를 다시 활성화한다(인터럽트를 잠시 비활성화했던 이유는 CR2 값이 변경되기 전에 확실히 읽어올 수 있도록 하기 위함이었다). */
+	/* Turn interrupts back on (they were only off so that we could
+	   be assured of reading CR2 before it changed). */
 	intr_enable ();
 
 	/* Determine cause. */
