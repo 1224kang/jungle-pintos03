@@ -169,8 +169,8 @@ vm_get_frame (void) {
 
 /* Growing the stack. */
 static void
-vm_stack_growth (void *addr UNUSED) {
-
+vm_stack_growth (void *addr) {
+	vm_alloc_page(VM_ANON,addr,true);
 }
 
 /* Handle the fault on write_protected page */
@@ -211,7 +211,7 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 		
 		//스택 확장 범위 검사 
 		if((USER_STACK-(1<<20)) <= va && va < USER_STACK && rsp-8 <= va){
-			vm_stack_growth(pg_round_down(addr));
+			vm_stack_growth(pg_round_down(addr)); 
 			return vm_claim_page(pg_round_down(addr));
 		}
 		return false;
