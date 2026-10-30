@@ -65,4 +65,7 @@ uninit_destroy (struct page *page) {
 	struct uninit_page *uninit UNUSED = &page->uninit;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
+	if (uninit->aux != NULL) {  /* 페이지 폴트가 발생하지 않고 종료되어 남아있는 지연 로딩용 aux 메모리 해제 */
+		free(uninit->aux);
+	}
 }
