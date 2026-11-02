@@ -55,6 +55,9 @@ syscall_init (void) {
 struct intr_frame *f_data; // 프레임을 집어 넣어야 하는데 인자 개수가 f->R.rdi 하나로 제한되어 전역 변수 선언하여 집어넣음
 void
 syscall_handler (struct intr_frame *f) {
+	//커널 페이지 폴트 발생 대비
+	thread_current()->rsp=f->rsp;
+
 	switch (f->R.rax) {
 		case SYS_HALT:
 			halt ();

@@ -124,6 +124,7 @@ page_fault (struct intr_frame *f) {
 	bool user;         /* True: access by user, false: access by kernel. */
 	void *fault_addr;  /* Fault address. */
 
+	
 	/* Obtain faulting address, the virtual address that was
 	   accessed to cause the fault.  It may point to code or to
 	   data.  It is not necessarily the address of the instruction
@@ -131,6 +132,7 @@ page_fault (struct intr_frame *f) {
 
 	fault_addr = (void *) rcr2();
 
+	
 	/* Turn interrupts back on (they were only off so that we could
 	   be assured of reading CR2 before it changed). */
 	intr_enable ();
@@ -140,14 +142,13 @@ page_fault (struct intr_frame *f) {
 	write = (f->error_code & PF_W) != 0; // 0이면 읽기 중 폴트, 1이면 쓰기 중 폴트
 	user = (f->error_code & PF_U) != 0; // 0이면 커널모드 폴트, 1이면 유저 모드 폴트
 
-	if (user) exit(-1);
-
 #ifdef VM
 	/* For project 3 and later. */
 	if (vm_try_handle_fault (f, fault_addr, user, write, not_present))
 		return;
 #endif
 
+	if (user) exit(-1);
 	/* Count page faults. */
 	page_fault_cnt++;
 
