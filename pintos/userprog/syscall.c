@@ -21,7 +21,7 @@ void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
 static struct lock file_lock; 
-static void check_buffer (const void *buffer, unsigned size);
+static void check_buffer (const void *buffer, unsigned size, bool is_write);
 static bool check_address(const char *file);
 static struct file *fd_to_file (int fd);
 static bool check_file(const char *file);
@@ -291,7 +291,7 @@ filesize (int fd){
 
 int
 read (int fd, void *buffer, unsigned size) {
-    check_buffer(buffer, size);
+    check_buffer(buffer, size, true);
 
     struct thread *t = thread_current();
 
@@ -339,7 +339,7 @@ read (int fd, void *buffer, unsigned size) {
 
 int
 write (int fd, const void *buffer, unsigned size){
-	check_buffer(buffer, size);
+	check_buffer(buffer, size, false);
 
 	struct thread *t = thread_current();
 
@@ -425,7 +425,7 @@ close (int fd){
 }
 
 static void
-check_buffer (const void *buffer, unsigned size) {
+check_buffer (const void *buffer, unsigned size, bool is_write) {
 	if (buffer == NULL)          // 버퍼 포인터가 NULL이면 잘못된 접근이므로 종료
 		exit (-1);
 
@@ -448,8 +448,17 @@ check_buffer (const void *buffer, unsigned size) {
 		if (!is_user_vaddr (p)){             // 페이지가 사용자 영역이 아니면 커널 메모리 침범이므로 종료
 			exit (-1);
 		}
+		if(is_write){
+			struct page *page = spt_find_page(&thread_current()->spt, p);
+			if(page!=NULL){
+				if(!page->writable){
+					exit(-1);
+				}
+			}	
+		}
+		
 		if (pml4_get_page (pml4, p) == NULL){
-			if(!vm_claim_page(p)){
+			if(!vm_claim_page(p)){				
 				exit(-1);
 			}
 		}
