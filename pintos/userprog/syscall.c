@@ -458,8 +458,11 @@ check_buffer (const void *buffer, unsigned size, bool is_write) {
 		}
 		
 		if (pml4_get_page (pml4, p) == NULL){
-			if(!vm_claim_page(p)){				
-				exit(-1);
+			if(!vm_claim_page(p)){			
+				if(!((USER_STACK-(1<<20)) <= p && p < USER_STACK &&  (thread_current()->rsp)-8 <= p)){
+					exit(-1);
+				}	
+				// exit(-1);
 			}
 		}
 	}
