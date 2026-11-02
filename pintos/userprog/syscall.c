@@ -462,7 +462,6 @@ check_buffer (const void *buffer, unsigned size, bool is_write) {
 				if(!((USER_STACK-(1<<20)) <= p && p < USER_STACK &&  (thread_current()->rsp)-8 <= p)){
 					exit(-1);
 				}	
-				// exit(-1);
 			}
 		}
 	}
