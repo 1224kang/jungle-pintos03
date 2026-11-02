@@ -449,7 +449,9 @@ check_buffer (const void *buffer, unsigned size) {
 			exit (-1);
 		}
 		if (pml4_get_page (pml4, p) == NULL){
-			exit (-1);
+			if(!vm_claim_page(p)){
+				exit(-1);
+			}
 		}
 	}
 }
