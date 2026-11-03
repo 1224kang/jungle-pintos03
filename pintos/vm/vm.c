@@ -4,7 +4,11 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/mmu.h"
+#include "lib/kernel/list.h" 
+#include "threads/synch.h"
 
+struct list frame_list;
+struct lock frame_lock;
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -17,6 +21,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_list);
+    lock_init(&frame_lock);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -249,19 +255,41 @@ vm_claim_page (void *va UNUSED) {
 /* 페이지에 물리 프레임을 할당 and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
-	struct frame *frame = vm_get_frame ();
+        struct frame *frame = vm_get_frame ();
 
-	/* Set links */
-	frame->page = page;
-	page->frame = frame;
+        bool receive;
 
-	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (pml4_get_page(thread_current()->pml4, page->va) == NULL) {
-		if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable )) {
-			return false;
-		}
+        /* Set links */
+        frame->page = page;
+        page->frame = frame;
+
+        /* TODO: Insert page table entry to map page's VA to frame's PA. */
+        if (pml4_get_page(thread_current()->pml4, page->va) == NULL) {
+                if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)) {
+                        return false;
+                }
+        }
+        receive = swap_in(page, frame->kva);
+        if (receive) {
+                lock_acquire (&frame_lock);
+                list_push_back(&frame_list, &frame -> list_elem); 
+                lock_release (&frame_lock);
+        }
+        return receive;
+}
+
+void
+frame_spt_minus_return (struct page *page) {	
+	struct frame *frame;
+	if (page->frame != NULL) {
+		frame = page->frame;
+		lock_acquire(&frame_lock);
+		list_remove(&frame->list_elem);
+		lock_release (&frame_lock);
+		palloc_free_page(frame->kva);
+		free(frame);
+		page->frame =NULL;
 	}
-	return swap_in (page, frame->kva);
 }
 
 static void
