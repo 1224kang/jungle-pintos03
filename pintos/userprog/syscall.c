@@ -14,6 +14,7 @@
 #include "devices/input.h"
 #include "filesys/filesys.h"
 #include "threads/palloc.h"
+#include "vm/file.h"
 
 
 
@@ -25,6 +26,8 @@ static void check_buffer (const void *buffer, unsigned size);
 static bool check_address(const char *file);
 static struct file *fd_to_file (int fd);
 static bool check_file(const char *file);
+void *mmap(void *addr,size_t length,int writable, int fd, off_t offset);
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -119,6 +122,10 @@ syscall_handler (struct intr_frame *f) {
 
 		case SYS_DUP2:
 			f->R.rax = dup2((int)f->R.rdi, (int)f->R.rsi);
+			break;
+
+		case SYS_MMAP:
+			f->R.rax = mmap((int)f->R.rdi, f->R.rsi, (int)f->R.rdx, f->R.r10, f->R.r8);
 			break;
 
 		default:
@@ -458,7 +465,7 @@ check_buffer (const void *buffer, unsigned size) {
 
 static struct file *
 fd_to_file (int fd) {
-	return thread_current ()->fdt[fd]; // fdt-> 파일디스크립터 테이블이고 fd번호를 인덱스로 file 구조체를 찾는 부분
+	return thread_current ()->fdt[fd]->file; // fdt-> 파일디스크립터 테이블이고 fd번호를 인덱스로 file 구조체를 찾는 부분
 }
 
 static bool
@@ -503,4 +510,16 @@ int dup2(int oldfd, int newfd){
 	c_fdt[newfd]->share++;
 
 	return newfd;
+}
+
+void *
+mmap(void *addr,size_t length,int writable, int fd, off_t offset){
+	struct file *file = fd_to_file(fd);
+	if(addr==NULL || length==0 || fd==1){
+		return NULL;
+	}
+	if(file_length(file)==0){
+		return NULL;
+	}
+	return do_mmap(addr,length,writable,file,offset);
 }
