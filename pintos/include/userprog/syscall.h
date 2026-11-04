@@ -5,7 +5,6 @@ typedef int pid_t;
 #define USERPROG_SYSCALL_H
 
 void syscall_init (void);
-
 void halt (void);
 void exit (int status);
 pid_t fork (const char *thread_name);

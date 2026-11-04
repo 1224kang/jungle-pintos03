@@ -14,6 +14,7 @@
 #include "devices/input.h"
 #include "filesys/filesys.h"
 #include "threads/palloc.h"
+#include "vm/file.h"
 
 
 
@@ -25,6 +26,8 @@ static void check_buffer (const void *buffer, unsigned size, bool is_write);
 static bool check_address(const char *file);
 static struct file *fd_to_file (int fd);
 static bool check_file(const char *file);
+void *mmap(void *addr,size_t length,int writable, int fd, off_t offset);
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -119,6 +122,14 @@ syscall_handler (struct intr_frame *f) {
 
 		case SYS_DUP2:
 			f->R.rax = dup2((int)f->R.rdi, (int)f->R.rsi);
+			break;
+
+		case SYS_MMAP:
+			f->R.rax = mmap((void *)f->R.rdi, (size_t)f->R.rsi, (int)f->R.rdx, (int)f->R.r10, (off_t)f->R.r8);
+			break;
+		
+		case SYS_MUNMAP:
+			munmap((void *) f->R.rdi);
 			break;
 
 		default:
@@ -469,7 +480,14 @@ check_buffer (const void *buffer, unsigned size, bool is_write) {
 
 static struct file *
 fd_to_file (int fd) {
-	return thread_current ()->fdt[fd]; // fdt-> 파일디스크립터 테이블이고 fd번호를 인덱스로 file 구조체를 찾는 부분
+	if (fd < 0 || fd >= FILE_MAX)
+		return NULL;
+
+	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
+
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
+		return NULL;
+	return file_desc -> file;
 }
 
 static bool
@@ -514,4 +532,54 @@ int dup2(int oldfd, int newfd){
 	c_fdt[newfd]->share++;
 
 	return newfd;
+}
+
+void *
+mmap(void *addr,size_t length,int writable, int fd, off_t offset){
+	if(addr==NULL || length==0 || fd==1 || fd==0 ){
+		return NULL;
+	}
+
+	struct file *file = fd_to_file(fd);
+	if(file==NULL){
+		return NULL;
+	}
+	if(file_length(file)==0){
+		return NULL;
+	}
+
+	uintptr_t va = (uintptr_t)addr;
+	
+	//addr, offset 정렬 확인
+	if (va % PGSIZE != 0){
+		return NULL;
+	}
+	if (offset % PGSIZE != 0){
+		return NULL;
+	}
+
+	//시작 주소가 유저 영역인지 판단
+	if(!is_user_vaddr(va)){
+		return NULL;
+	}
+	//매핑할 가상 주소 범위의 크기가 커널 침범 요청인지 판단
+	if(length > KERN_BASE - va){
+		return NULL;
+	}	
+	
+	for (uintptr_t start = va; start < va+length; start += PGSIZE){
+		//이미 매핑되어 있는 페이지인지 확인 
+		if(spt_find_page(&thread_current()->spt,(void *)start)!=NULL){
+			return NULL;
+		}
+	}
+
+	return do_mmap(va,length,writable,file,offset);
+}
+
+void
+munmap(void *addr){
+	//spt에서 addr로 페이지 찾기
+
+	//
 }
