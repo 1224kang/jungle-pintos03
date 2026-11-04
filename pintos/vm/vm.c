@@ -1,5 +1,7 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
+#include <string.h>
+#include "userprog/process.h"
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
@@ -277,8 +279,56 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 
 /* Copy supplemental page table from src to dst */
 bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+supplemental_page_table_copy (struct supplemental_page_table *dst, struct supplemental_page_table *src) {
+	struct hash_iterator i;
+
+	hash_first(&i, &src->hash_table);
+
+	while (hash_next(&i)) {
+		struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
+
+		switch (VM_TYPE(p->operations->type)) {
+			case VM_UNINIT: {
+				struct lazy_load_arg *lazy_load_arg = NULL;
+
+				if (p->uninit.aux != NULL) {
+					lazy_load_arg = malloc(sizeof(struct lazy_load_arg));
+
+					if (lazy_load_arg == NULL) {
+						return false;
+					}
+
+					memcpy(lazy_load_arg, p->uninit.aux, sizeof(struct lazy_load_arg));
+				}
+				if (!vm_alloc_page_with_initializer(p->uninit.type, p->va, p->writable, p->uninit.init, lazy_load_arg)) {
+					free(lazy_load_arg);
+					return false;
+				}
+
+				break;
+			}
+
+			case VM_ANON: {
+				if (!vm_alloc_page(VM_ANON, p->va, p->writable)) {
+					return false;
+				}
+				if (!vm_claim_page(p->va)) {
+					return false;
+				}
+				struct page *child_p = spt_find_page(dst, p->va);
+
+				memcpy(child_p->frame->kva, p->frame->kva, PGSIZE);
+
+				break;
+			}
+
+			case VM_FILE: {
+				break;
+			}
+		}
+	}
+
+	return true;
 }
 
 /* Free the resource hold by the supplemental page table */
