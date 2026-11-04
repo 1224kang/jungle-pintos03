@@ -4,7 +4,11 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/mmu.h"
+#include "lib/kernel/list.h" 
+#include "threads/synch.h"
 
+struct list frame_list;
+struct lock frame_lock;
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -17,6 +21,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_list);
+    lock_init(&frame_lock);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -40,6 +46,7 @@ static struct frame *vm_evict_frame (void);
 
 static uint64_t page_hash (const struct hash_elem *e, void *aux UNUSED);
 static bool page_less (const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED);
+static void page_destructor (struct hash_elem *e, void *aux UNUSED);
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
@@ -248,19 +255,46 @@ vm_claim_page (void *va UNUSED) {
 /* 페이지에 물리 프레임을 할당 and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
-	struct frame *frame = vm_get_frame ();
+        struct frame *frame = vm_get_frame ();
 
-	/* Set links */
-	frame->page = page;
-	page->frame = frame;
+        bool receive;
 
-	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (pml4_get_page(thread_current()->pml4, page->va) == NULL) {
-		if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable )) {
-			return false;
-		}
+        /* Set links */
+        frame->page = page;
+        page->frame = frame;
+
+        /* TODO: Insert page table entry to map page's VA to frame's PA. */
+        if (pml4_get_page(thread_current()->pml4, page->va) == NULL) {
+                if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)) {
+                        return false;
+                }
+        }
+        receive = swap_in(page, frame->kva);
+        if (receive) {
+                lock_acquire (&frame_lock);
+                list_push_back(&frame_list, &frame -> list_elem); 
+                lock_release (&frame_lock);
+        }
+        return receive;
+}
+
+void
+frame_spt_minus_return (struct page *page) {	
+	struct frame *frame;
+	if (page->frame != NULL) {
+		frame = page->frame;
+		lock_acquire(&frame_lock);
+		list_remove(&frame->list_elem);
+		lock_release (&frame_lock);
+		palloc_free_page(frame->kva);
+		free(frame);
+		page->frame =NULL;
 	}
-	return swap_in (page, frame->kva);
+}
+
+static void
+page_destructor (struct hash_elem *e, void *aux) {
+	vm_dealloc_page(hash_entry(e, struct page, hash_elem));
 }
 
 /* Initialize new supplemental page table */
@@ -277,9 +311,10 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 
 /* Free the resource hold by the supplemental page table */
 void
-supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
+supplemental_page_table_kill (struct supplemental_page_table *spt) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	hash_clear(&spt->hash_table, page_destructor);
 }
 
 static uint64_t
