@@ -28,4 +28,8 @@ core
 
 # macOS
 .DS_Store
+
+# vsc
+.vscode
+
 scripts/**
