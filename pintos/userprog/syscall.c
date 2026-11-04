@@ -125,11 +125,12 @@ syscall_handler (struct intr_frame *f) {
 			break;
 
 		case SYS_MMAP:
-			f->R.rax = mmap((int)f->R.rdi, f->R.rsi, (int)f->R.rdx, f->R.r10, f->R.r8);
+			f->R.rax = mmap((void *)f->R.rdi, (size_t)f->R.rsi, (int)f->R.rdx, (int)f->R.r10, (off_t)f->R.r8);
 			break;
 		
 		case SYS_MUNMAP:
 			munmap((void *) f->R.rdi);
+			break;
 
 		default:
 			exit(-1);
@@ -538,14 +539,43 @@ mmap(void *addr,size_t length,int writable, int fd, off_t offset){
 	if(addr==NULL || length==0 || fd==1 || fd==0 ){
 		return NULL;
 	}
-	struct file *file = fd_to_file(fd);\
+
+	struct file *file = fd_to_file(fd);
 	if(file==NULL){
 		return NULL;
 	}
 	if(file_length(file)==0){
 		return NULL;
 	}
-	return do_mmap(addr,length,writable,file,offset);
+
+	uintptr_t va = (uintptr_t)addr;
+	
+	//addr, offset 정렬 확인
+	if (va % PGSIZE != 0){
+		return NULL;
+	}
+	if (offset % PGSIZE != 0){
+		return NULL;
+	}
+
+	//시작 주소가 유저 영역인지 판단
+	if(!is_user_vaddr(va)){
+		return NULL;
+	}
+	//매핑할 가상 주소 범위의 크기가 커널 침범 요청인지 판단
+	if(length > KERN_BASE - va){
+		return NULL;
+	}	
+	
+	
+	for (uintptr_t start = va; length < KERN_BASE - start; start += PGSIZE){
+		//이미 매핑되어 있는 페이지인지 확인 
+		if(spt_find_page(&thread_current()->spt,(void *)start)!=NULL){
+			return NULL;
+		}
+	}
+
+	return do_mmap(va,length,writable,file,offset);
 }
 
 void

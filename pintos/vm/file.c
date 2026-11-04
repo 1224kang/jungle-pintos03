@@ -65,26 +65,13 @@ mmap_load_segment (struct page *page, void *aux) {
 
 /* Do the mmap */
 void *
-do_mmap (void *addr, size_t length, int writable,
+do_mmap (uintptr_t va, size_t length, int writable,
 		struct file *file, off_t offset) {
-	uintptr_t va = (uintptr_t)addr;
 	
-	if (va % PGSIZE != 0){
-		return NULL;
-	}
-
-	//이미 매핑되어 있는 페이지인지 확인 
-	uintptr_t end = va + length;
-	for (uintptr_t start = va; start < end; start += PGSIZE){
-		if(spt_find_page(&thread_current()->spt,(void *)start)!=NULL){
-			return NULL;
-		}
-	}
-
 	off_t file_size=file_length(file) - offset;
 	size_t read_bytes = file_size < length ? file_size : length;
 
-	for (uintptr_t start = va; start < end; start += PGSIZE) {
+	for (uintptr_t start = va; start < va+length; start += PGSIZE) {
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
@@ -105,7 +92,7 @@ do_mmap (void *addr, size_t length, int writable,
 		offset += PGSIZE;
 	}
 	
-	return addr;
+	return va;
 		
 }
 
