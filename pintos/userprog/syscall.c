@@ -567,8 +567,7 @@ mmap(void *addr,size_t length,int writable, int fd, off_t offset){
 		return NULL;
 	}	
 	
-	
-	for (uintptr_t start = va; length < KERN_BASE - start; start += PGSIZE){
+	for (uintptr_t start = va; start < va+length; start += PGSIZE){
 		//이미 매핑되어 있는 페이지인지 확인 
 		if(spt_find_page(&thread_current()->spt,(void *)start)!=NULL){
 			return NULL;
