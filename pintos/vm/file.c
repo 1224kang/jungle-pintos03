@@ -68,13 +68,13 @@ void *
 do_mmap (void *addr, size_t length, int writable,
 		struct file *file, off_t offset) {
 	uintptr_t va = (uintptr_t)addr;
-	uintptr_t end = va + length;
 	
 	if (va % PGSIZE != 0){
 		return NULL;
 	}
 
 	//이미 매핑되어 있는 페이지인지 확인 
+	uintptr_t end = va + length;
 	for (uintptr_t start = va; start < end; start += PGSIZE){
 		if(spt_find_page(&thread_current()->spt,(void *)start)!=NULL){
 			return NULL;

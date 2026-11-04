@@ -127,6 +127,9 @@ syscall_handler (struct intr_frame *f) {
 		case SYS_MMAP:
 			f->R.rax = mmap((int)f->R.rdi, f->R.rsi, (int)f->R.rdx, f->R.r10, f->R.r8);
 			break;
+		
+		case SYS_MUNMAP:
+			munmap((void *) f->R.rdi);
 
 		default:
 			exit(-1);
@@ -465,7 +468,14 @@ check_buffer (const void *buffer, unsigned size) {
 
 static struct file *
 fd_to_file (int fd) {
-	return thread_current ()->fdt[fd]->file; // fdt-> 파일디스크립터 테이블이고 fd번호를 인덱스로 file 구조체를 찾는 부분
+	if (fd < 0 || fd >= FILE_MAX)
+		return NULL;
+
+	struct file_descriptor *file_desc = thread_current ()->fdt[fd];
+
+	if (file_desc == NULL || file_desc->fT != FD_FILE || file_desc->file == NULL)
+		return NULL;
+	return file_desc -> file;
 }
 
 static bool
@@ -514,12 +524,22 @@ int dup2(int oldfd, int newfd){
 
 void *
 mmap(void *addr,size_t length,int writable, int fd, off_t offset){
-	struct file *file = fd_to_file(fd);
-	if(addr==NULL || length==0 || fd==1){
+	if(addr==NULL || length==0 || fd==1 || fd==0 ){
+		return NULL;
+	}
+	struct file *file = fd_to_file(fd);\
+	if(file==NULL){
 		return NULL;
 	}
 	if(file_length(file)==0){
 		return NULL;
 	}
 	return do_mmap(addr,length,writable,file,offset);
+}
+
+void
+munmap(void *addr){
+	//spt에서 addr로 페이지 찾기
+
+	//
 }

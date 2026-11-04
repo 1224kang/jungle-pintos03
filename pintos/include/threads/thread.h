@@ -122,7 +122,7 @@ struct thread {
 	struct semaphore child_sema;
 	struct semaphore parent_sema;
 #endif
-#ifdef VM
+#ifdef VM    
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
